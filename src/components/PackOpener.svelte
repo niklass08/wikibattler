@@ -315,12 +315,16 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
-    transform: translate3d(calc(var(--i) * 3px), calc(var(--i) * 4px), 0)
-      rotate(calc(var(--i) * 0.5deg));
+    /* fan upward from a bottom-anchored front card, so the deck never overlaps
+       the hint / list below it */
+    transform-origin: bottom center;
+    transform: translateY(calc(var(--i) * -1.5px)) rotate(calc(var(--i) * -0.5deg));
     z-index: calc(50 - var(--i));
-    filter: brightness(calc(1 - var(--i) * 0.055));
+    filter: brightness(calc(1 - var(--i) * 0.05));
   }
   .hint {
+    position: relative;
+    z-index: 1;
     color: var(--text-faint);
     font-size: 13px;
   }
@@ -375,6 +379,8 @@
     text-shadow: 0 0 10px color-mix(in srgb, var(--foil-3) 55%, transparent);
   }
   .god {
+    position: relative;
+    z-index: 1;
     font-family: var(--font-mono);
     font-weight: 700;
     letter-spacing: 0.32em;
@@ -412,7 +418,7 @@
       width: min(56vw, 210px);
     }
     .stack-wrap {
-      gap: 14px;
+      gap: 18px;
     }
     .drawn {
       margin-top: 16px;
