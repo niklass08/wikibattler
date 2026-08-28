@@ -9,6 +9,26 @@ export const RARITY_LABEL: Record<Rarity, string> = {
   mythic: 'Mythic'
 };
 
+/** Compact rarity mark shown in the card corner. */
+export const RARITY_GLYPH: Record<Rarity, string> = {
+  common: '●', // ●
+  uncommon: '◆', // ◆
+  rare: '✦', // ✦
+  mythic: '✹' // ✹
+};
+
+/**
+ * Holographic finish, independent of rarity. 0 = plain; 1–3 escalate from a
+ * subtle shimmer to a full prismatic treatment. Rolled per pack in foil.ts.
+ */
+export type FoilTier = 0 | 1 | 2 | 3;
+
+export const FOIL_LABEL: Record<Exclude<FoilTier, 0>, string> = {
+  1: 'Shimmer',
+  2: 'Radiant',
+  3: 'Cosmic'
+};
+
 /** Raw, un-normalised measurements taken from the Wikimedia APIs. */
 export interface CardRaw {
   /** Count of internal mainspace links in the article. Drives strength. */
@@ -33,20 +53,19 @@ export interface Card {
   strength: number;
   /** Normalised 1–99. */
   defence: number;
+  /** Holographic finish (rarity-independent). 0 for the vast majority of cards. */
+  foil: FoilTier;
+  /** Thematic tags (cinema, politics, …) from the article's categories. See tags.ts. */
+  tags: string[];
   raw: CardRaw;
 }
 
-export interface PoolsFile {
-  generatedAt: string;
-  project: string;
-  thresholds: { uncommon: number; rare: number; mythic: number };
-  cards: Card[];
-}
-
-/** A card as it sits in the player's collection. */
+/** A card as it sits in the player's collection. Card data is stored inline —
+ * there is no static pool to look it up in, cards come from the live API. */
 export interface OwnedEntry {
   count: number;
   firstOpenedAt: string;
+  card: Card;
 }
 
 export type Collection = Record<number, OwnedEntry>;

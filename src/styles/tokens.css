@@ -17,12 +17,25 @@
   --mythic: #b98bff;
   --mythic-2: #f5c542;
 
+  /* wikipedia-grey card back */
+  --paper: #d7d9dd;
+  --paper-2: #b4b7bd;
+  --paper-line: #a2a9b1;
+  --paper-ink: #54595d;
+
+  /* holographic foil palette (rarity-independent) */
+  --foil-1: #6fe3ff; /* cyan */
+  --foil-2: #b98bff; /* violet */
+  --foil-3: #ffd76a; /* gold */
+  --foil-4: #6bffb0; /* mint */
+  --foil-5: #ff7ad9; /* magenta */
+
   /* geometry */
   --radius: 14px;
   --radius-sm: 8px;
   --card-radius: 12px;
-  --pad: clamp(16px, 4vw, 40px);
-  --maxw: 1120px;
+  --pad: clamp(20px, 4vw, 60px);
+  --maxw: 1500px;
 
   /* type */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;

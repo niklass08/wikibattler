@@ -18,6 +18,8 @@ function makeCard(id: number, rarity: Rarity): Card {
     rarity,
     strength: 10,
     defence: 10,
+    foil: 0,
+    tags: [],
     raw: { links: 0, bytes: 0, monthlyViews: 0 }
   };
 }

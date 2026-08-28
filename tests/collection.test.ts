@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { computeProgress } from '../src/lib/collection';
+import { computeProgress, collection } from '../src/lib/collection';
 import type { Card, Collection, Rarity } from '../src/lib/types';
+import { get } from 'svelte/store';
 
 function card(id: number, rarity: Rarity): Card {
   return {
@@ -12,37 +13,62 @@ function card(id: number, rarity: Rarity): Card {
     rarity,
     strength: 1,
     defence: 1,
+    foil: 0,
+    tags: [],
     raw: { links: 0, bytes: 0, monthlyViews: 0 }
   };
 }
 
-describe('computeProgress', () => {
-  const cardById = new Map<number, Card>([
-    [1, card(1, 'common')],
-    [2, card(2, 'common')],
-    [3, card(3, 'uncommon')],
-    [4, card(4, 'rare')],
-    [5, card(5, 'mythic')]
-  ]);
-  const totals: Record<Rarity, number> = { common: 2, uncommon: 1, rare: 1, mythic: 1 };
+function entry(id: number, rarity: Rarity, count: number) {
+  return { count, firstOpenedAt: 'x', card: card(id, rarity) };
+}
 
-  it('counts unique owned per rarity, ignoring dupes and unknown ids', () => {
+describe('computeProgress', () => {
+  it('counts unique owned per rarity and total cards including dupes', () => {
     const col: Collection = {
-      1: { count: 3, firstOpenedAt: 'x' },
-      3: { count: 1, firstOpenedAt: 'x' },
-      999: { count: 1, firstOpenedAt: 'x' } // not in pool
+      1: entry(1, 'common', 3),
+      2: entry(2, 'common', 1),
+      3: entry(3, 'uncommon', 2),
+      4: entry(4, 'mythic', 1)
     };
-    const p = computeProgress(col, cardById, totals);
-    expect(p.ownedUnique).toBe(2);
-    expect(p.total).toBe(5);
-    expect(p.perRarity.find((r) => r.rarity === 'common')).toMatchObject({ owned: 1, total: 2 });
-    expect(p.perRarity.find((r) => r.rarity === 'uncommon')).toMatchObject({ owned: 1, total: 1 });
-    expect(p.perRarity.find((r) => r.rarity === 'mythic')).toMatchObject({ owned: 0, total: 1 });
+    const p = computeProgress(col);
+    expect(p.ownedUnique).toBe(4);
+    expect(p.totalCards).toBe(7);
+    expect(p.perRarity.find((r) => r.rarity === 'common')).toEqual({ rarity: 'common', owned: 2 });
+    expect(p.perRarity.find((r) => r.rarity === 'uncommon')).toEqual({ rarity: 'uncommon', owned: 1 });
+    expect(p.perRarity.find((r) => r.rarity === 'rare')).toEqual({ rarity: 'rare', owned: 0 });
+    expect(p.perRarity.find((r) => r.rarity === 'mythic')).toEqual({ rarity: 'mythic', owned: 1 });
   });
 
   it('is empty for an empty collection', () => {
-    const p = computeProgress({}, cardById, totals);
+    const p = computeProgress({});
     expect(p.ownedUnique).toBe(0);
+    expect(p.totalCards).toBe(0);
     expect(p.perRarity.every((r) => r.owned === 0)).toBe(true);
+  });
+});
+
+describe('collection.addCards foil handling', () => {
+  it('keeps the best foil tier ever pulled for a card', () => {
+    collection.reset();
+    const base = card(10, 'rare');
+    collection.addCards([{ ...base, foil: 2 }]);
+    collection.addCards([{ ...base, foil: 0 }]); // a plain re-pull
+    expect(get(collection)[10].card.foil).toBe(2);
+    collection.addCards([{ ...base, foil: 3 }]); // an upgrade
+    expect(get(collection)[10].card.foil).toBe(3);
+    expect(get(collection)[10].count).toBe(3);
+    collection.reset();
+  });
+
+  it('setImage backfills art only for a card that has none', () => {
+    collection.reset();
+    collection.addCards([{ ...card(20, 'common'), image: null }]);
+    collection.addCards([{ ...card(21, 'common'), image: 'https://a/keep.jpg' }]);
+    collection.setImage(20, 'https://a/new.jpg');
+    collection.setImage(21, 'https://a/override.jpg');
+    expect(get(collection)[20].card.image).toBe('https://a/new.jpg');
+    expect(get(collection)[21].card.image).toBe('https://a/keep.jpg');
+    collection.reset();
   });
 });

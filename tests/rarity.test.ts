@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  rarityFromViews,
-  strengthFromLinks,
-  defenceFromBytes,
-  percentileNormalise
-} from '../src/lib/rarity';
+import { rarityFromViews, strengthFromLinks, defenceFromBytes } from '../src/lib/rarity';
 
 describe('rarityFromViews', () => {
   it('buckets by the default thresholds', () => {
@@ -38,25 +33,5 @@ describe('stat formulas', () => {
     }
     expect(strengthFromLinks(2000)).toBeGreaterThan(strengthFromLinks(20));
     expect(defenceFromBytes(200000)).toBeGreaterThan(defenceFromBytes(2000));
-  });
-});
-
-describe('percentileNormalise', () => {
-  it('maps min to 1 and max to 99', () => {
-    const out = percentileNormalise([5, 1, 9, 3, 7]);
-    expect(Math.min(...out)).toBe(1);
-    expect(Math.max(...out)).toBe(99);
-  });
-  it('handles degenerate inputs', () => {
-    expect(percentileNormalise([])).toEqual([]);
-    expect(percentileNormalise([42])).toEqual([50]);
-    expect(percentileNormalise([7, 7, 7])).toEqual([1, 1, 1]);
-  });
-  it('preserves order', () => {
-    const raw = [100, 5, 50, 5, 999];
-    const out = percentileNormalise(raw);
-    expect(out[1]).toBe(out[3]); // equal inputs → equal output
-    expect(out[4]).toBeGreaterThan(out[0]);
-    expect(out[0]).toBeGreaterThan(out[2]);
   });
 });

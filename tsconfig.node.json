@@ -10,5 +10,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["scripts/**/*.ts", "src/lib/rarity.ts", "src/lib/types.ts"]
+  "include": ["vite.config.ts"]
 }

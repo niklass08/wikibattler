@@ -3,8 +3,6 @@ import { render } from 'svelte/server';
 import Card from '../src/components/Card.svelte';
 import RarityBadge from '../src/components/RarityBadge.svelte';
 import App from '../src/App.svelte';
-import { loadPools, totalCards, rarityPools } from '../src/lib/pools';
-import { generatePack } from '../src/lib/pack';
 import type { Card as CardT } from '../src/lib/types';
 
 const sample: CardT = {
@@ -16,6 +14,8 @@ const sample: CardT = {
   rarity: 'mythic',
   strength: 58,
   defence: 77,
+  foil: 0,
+  tags: [],
   raw: { links: 340, bytes: 84000, monthlyViews: 500000 }
 };
 
@@ -33,6 +33,29 @@ describe('component render (SSR)', () => {
     expect(body).toContain('Unrevealed card');
   });
 
+  it('does not leak the foil finish or rarity glyph on a face-down card', () => {
+    const foilCard: CardT = { ...sample, foil: 3 };
+    const up = render(Card, { props: { card: foilCard } }).body;
+    const down = render(Card, { props: { card: foilCard, faceDown: true } }).body;
+    // face-up: the foil overlay (incl. its tier-3 sparkles) and the foiled class
+    expect(up).toContain('foiled');
+    expect(up).toContain('sparks');
+    expect(up).toContain('data-foil="3"');
+    // face-down: nothing — the pull can't be told before the reveal
+    expect(down).not.toContain('foiled');
+    expect(down).not.toContain('sparks');
+    expect(down).not.toContain('data-foil');
+    // the corner rarity glyph is likewise face-up only
+    expect(up).toContain('glyph');
+    expect(down).not.toContain('glyph');
+  });
+
+  it('shows no foil layers on a plain (foil 0) card', () => {
+    const { body } = render(Card, { props: { card: { ...sample, foil: 0 } } });
+    expect(body).not.toContain('foiled');
+    expect(body).not.toContain('class="foil');
+  });
+
   it('renders every rarity badge', () => {
     for (const rarity of ['common', 'uncommon', 'rare', 'mythic'] as const) {
       const { body } = render(RarityBadge, { props: { rarity } });
@@ -41,26 +64,10 @@ describe('component render (SSR)', () => {
   });
 });
 
-describe('app with the real pool', () => {
-  it('loads a non-trivial pool with all four rarities populated', async () => {
-    await loadPools();
-    expect(totalCards).toBeGreaterThan(200);
-    for (const r of ['common', 'uncommon', 'rare', 'mythic'] as const) {
-      expect(rarityPools[r].length).toBeGreaterThan(0);
-    }
-  });
-
-  it('renders <App> without throwing', async () => {
-    await loadPools();
+describe('app shell', () => {
+  it('renders <App> with no pool and no network', () => {
     const { body } = render(App);
     expect(body).toContain('Open a pack');
-    expect(body).toContain('/1800'); // collection count reflects the loaded pool
-  });
-
-  it('generates a valid pack from the real pool', async () => {
-    await loadPools();
-    const pack = generatePack(rarityPools);
-    expect(pack).toHaveLength(7);
-    expect(new Set(pack.map((c) => c.id)).size).toBe(7);
+    expect(body).toContain('drawn live from Wikipedia');
   });
 });

@@ -1,42 +1,82 @@
 <script lang="ts">
-  import { collection, computeProgress } from '../lib/collection';
-  import { cardById, totalsByRarity } from '../lib/pools';
+  import { collection, computeProgress, packsOpened } from '../lib/collection';
   import { RARITIES, type Rarity } from '../lib/types';
+  import { TAG_LABEL, TAGS, deriveTags, type Tag } from '../lib/tags';
   import { view } from '../stores/view';
+  import { fetchCategories } from '../lib/wiki';
   import Card from './Card.svelte';
   import CardDetail from './CardDetail.svelte';
   import type { Card as CardT } from '../lib/types';
 
-  type Sort = 'recent' | 'name' | 'strength' | 'defence';
+  type Sort = 'recent' | 'name' | 'rarity' | 'foil' | 'dupes' | 'strength' | 'defence';
 
   let rarityFilter = $state<Rarity | 'all'>('all');
+  let tagFilter = $state<Tag | 'all'>('all');
   let sort = $state<Sort>('recent');
   let detail = $state<CardT | null>(null);
 
-  const progress = $derived(computeProgress($collection, cardById, totalsByRarity));
+  const progress = $derived(computeProgress($collection));
 
-  const owned = $derived(
-    Object.keys($collection)
-      .map((id) => cardById.get(Number(id)))
-      .filter((c): c is CardT => !!c)
+  const owned = $derived(Object.values($collection).map((e) => e.card));
+
+  // tags present in the collection, in canonical order — drives the filter row
+  const tagsInUse = $derived(
+    (() => {
+      const seen = new Set<string>();
+      for (const c of owned) for (const t of c.tags ?? []) seen.add(t);
+      return TAGS.filter((t) => seen.has(t));
+    })()
   );
+
+  // Backfill tags on cards pulled before the tag system, in a few batched calls.
+  const sweptForTags = new Set<number>();
+  let sweeping = false;
+  $effect(() => {
+    const untagged = Object.values($collection)
+      .filter((e) => !sweptForTags.has(e.card.id) && !(e.card.tags?.length))
+      .map((e) => e.card);
+    if (untagged.length === 0 || sweeping) return;
+    sweeping = true;
+    (async () => {
+      for (let i = 0; i < untagged.length; i += 12) {
+        const batch = untagged.slice(i, i + 12);
+        const cats = await fetchCategories(batch.map((c) => c.title));
+        for (const card of batch) {
+          sweptForTags.add(card.id);
+          const tags = deriveTags(cats.get(card.title) ?? [], card.extract);
+          if (tags.length) collection.setTags(card.id, tags);
+        }
+      }
+      sweeping = false;
+    })();
+  });
 
   const shown = $derived(
     owned
       .filter((c) => rarityFilter === 'all' || c.rarity === rarityFilter)
+      .filter((c) => tagFilter === 'all' || (c.tags ?? []).includes(tagFilter))
       .sort((a, b) => {
         if (sort === 'name') return a.title.localeCompare(b.title);
         if (sort === 'strength') return b.strength - a.strength;
         if (sort === 'defence') return b.defence - a.defence;
+        if (sort === 'rarity') {
+          const d = RARITIES.indexOf(b.rarity) - RARITIES.indexOf(a.rarity);
+          return d !== 0 ? d : a.title.localeCompare(b.title);
+        }
+        if (sort === 'foil') {
+          const d = (b.foil ?? 0) - (a.foil ?? 0);
+          return d !== 0 ? d : a.title.localeCompare(b.title);
+        }
+        if (sort === 'dupes') {
+          const d = ($collection[b.id]?.count ?? 1) - ($collection[a.id]?.count ?? 1);
+          return d !== 0 ? d : a.title.localeCompare(b.title);
+        }
         const ta = $collection[a.id]?.firstOpenedAt ?? '';
         const tb = $collection[b.id]?.firstOpenedAt ?? '';
         return tb.localeCompare(ta);
       })
   );
 
-  const pct = $derived(
-    progress.total > 0 ? Math.round((progress.ownedUnique / progress.total) * 100) : 0
-  );
 </script>
 
 <section class="collection wrap">
@@ -49,13 +89,16 @@
     <header class="head">
       <div>
         <h1>Collection</h1>
-        <p class="sub mono">{progress.ownedUnique} / {progress.total} unique · {pct}%</p>
+        <p class="sub mono">
+          {progress.ownedUnique} unique · {progress.totalCards} cards · {$packsOpened} packs
+        </p>
       </div>
       <div class="meters">
         {#each progress.perRarity as r (r.rarity)}
-          <div class="meter rarity-{r.rarity}" title="{r.owned} of {r.total}">
-            <div class="track"><div class="fill" style="width:{r.total ? (r.owned / r.total) * 100 : 0}%"></div></div>
-            <span class="mono">{r.owned}/{r.total}</span>
+          <div class="meter rarity-{r.rarity}">
+            <span class="dot"></span>
+            <span class="mono">{r.owned}</span>
+            <span class="label">{r.rarity}</span>
           </div>
         {/each}
       </div>
@@ -79,11 +122,25 @@
         <select bind:value={sort}>
           <option value="recent">Recent</option>
           <option value="name">Name</option>
+          <option value="rarity">Rarity</option>
+          <option value="foil">Foil</option>
+          <option value="dupes">Duplicates</option>
           <option value="strength">Strength</option>
           <option value="defence">Defence</option>
         </select>
       </label>
     </div>
+
+    {#if tagsInUse.length > 0}
+      <div class="tags">
+        <button class:on={tagFilter === 'all'} onclick={() => (tagFilter = 'all')}>All themes</button>
+        {#each tagsInUse as t (t)}
+          <button class:on={tagFilter === t} onclick={() => (tagFilter = tagFilter === t ? 'all' : t)}>
+            {TAG_LABEL[t]}
+          </button>
+        {/each}
+      </div>
+    {/if}
 
     <div class="grid">
       {#each shown as card (card.id)}
@@ -91,6 +148,7 @@
           {card}
           dupCount={$collection[card.id]?.count ?? 1}
           onclick={() => (detail = card)}
+          onResolveImage={(url) => collection.setImage(card.id, url)}
         />
       {/each}
     </div>
@@ -103,7 +161,7 @@
 
 <style>
   .collection {
-    padding-block: clamp(28px, 6vh, 56px);
+    padding-block: clamp(36px, 7vh, 72px);
   }
   .empty {
     display: flex;
@@ -123,38 +181,44 @@
     margin-bottom: 22px;
   }
   h1 {
-    font-size: clamp(22px, 4vw, 30px);
+    font-size: clamp(28px, 4vw, 40px);
     font-weight: 700;
     letter-spacing: -0.03em;
   }
   .sub {
     color: var(--text-dim);
-    font-size: 12px;
-    margin-top: 4px;
+    font-size: 13px;
+    margin-top: 6px;
   }
   .meters {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(72px, 1fr));
-    gap: 12px;
-    min-width: min(340px, 100%);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
   .meter {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    font-size: 10px;
-    color: var(--text-faint);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--text-dim);
   }
-  .track {
-    height: 3px;
-    border-radius: 2px;
-    background: var(--surface-2);
-    overflow: hidden;
-  }
-  .fill {
-    height: 100%;
+  .meter .dot {
+    align-self: center;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
     background: var(--accent);
-    transition: width 400ms var(--ease);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 65%, transparent);
+  }
+  .meter .mono {
+    color: var(--text);
+    font-size: 13px;
+  }
+  .meter .label {
+    text-transform: capitalize;
   }
 
   .filters {
@@ -173,10 +237,10 @@
     flex-wrap: wrap;
   }
   .chips button {
-    padding: 6px 12px;
+    padding: 8px 16px;
     border-radius: 999px;
     border: 1px solid var(--line);
-    font-size: 12px;
+    font-size: 13px;
     text-transform: capitalize;
     color: var(--text-dim);
     transition: all var(--dur) var(--ease);
@@ -189,25 +253,48 @@
     border-color: var(--accent, var(--text));
     background: color-mix(in srgb, var(--accent, var(--text)) 14%, transparent);
   }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: -8px 0 22px;
+  }
+  .tags button {
+    padding: 6px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--text-dim);
+    transition: all var(--dur) var(--ease);
+  }
+  .tags button:hover {
+    color: var(--text);
+  }
+  .tags button.on {
+    color: var(--bg);
+    background: var(--text);
+    border-color: var(--text);
+  }
   .sort {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-dim);
   }
   .sort select {
     font: inherit;
+    font-size: 13px;
     color: var(--text);
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius-sm);
-    padding: 6px 8px;
+    padding: 7px 10px;
   }
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: clamp(12px, 2vw, 22px);
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: clamp(16px, 2vw, 28px);
   }
 </style>

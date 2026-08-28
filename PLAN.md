@@ -8,32 +8,47 @@ before working. Update it when decisions change.
 
 ---
 
-## 0. Status — v1 is built (2026-08-28)
+## 0. Status — live-fetch rework (2026-08-28)
 
-Working end to end: scaffold, both screens, pack opening with reveal/foil, collection
-with filters + completion meters, card detail, the crawler, and a committed
-1,800-card `pools.json`. `npm run dev` runs it; `npm test` (19 tests) and
-`npm run check` and `npm run build` all pass.
+Working end to end: scaffold, both screens, pack opening with the stacked-deck
+reveal, collection with filters + per-rarity counts, card detail. `npm run dev`
+runs it; `npm test` (23 tests), `npm run check`, `npm run build` all pass. App
+bundle ~27 KB gz, no data chunk.
 
-Deltas from the plan below, worth knowing:
+**The build-time crawler is gone.** Cards are now fetched live from the Wikimedia
+APIs on demand, so any of Wikipedia's ~7M articles can appear in a pack. Sections
+§2–§5 below are rewritten / marked historical to match.
 
-- **Rarity thresholds** were tuned against the first real crawl to
-  `uncommon 10k / rare 150k / mythic 400k` monthly views → a 55 / 31 / 12 / 3 split.
-  Constants live in `src/lib/rarity.ts`; `scripts/.cache/pools.summary.json` shows the
-  split after each crawl.
-- **`pools.json` is code-split**, not statically bundled — `main.ts` calls
-  `loadPools()` (dynamic `import()`) behind a boot splash before mounting. App chunk
-  ~24 KB gz, pool chunk ~338 KB gz.
-- **Popularity** uses the 60-day `prop=pageviews` sum ÷ 2 for *every* card (it comes
-  free in the enrich batch); the per-article monthly REST call was dropped as too slow
-  for marginal gain. `getMonthlyViews` is still in `scripts/lib/wiki.ts` if wanted.
-- **Mid-tier seeding** (the "missing middle") works by harvesting outgoing links from
-  the top ~200 popular articles — see `seedTitles()`. Enrich batches are 20 (the
-  TextExtracts intro-extract cap), not 50.
-- The current pool skews to 2026 sport/entertainment because recent "most viewed"
-  lists do. Regenerate with a wider `MONTHS_BACK` or curated seeds to diversify.
-- Known follow-ups: lazy-load / shrink the pool chunk further, "wild" live-draw mode,
-  collection export/import, nicer mobile hand layout.
+Key pieces:
+
+- `src/lib/wiki.ts` — browser Wikimedia client. `origin=*`, **no custom headers**
+  (they'd force a CORS preflight the API won't answer), 250 ms inter-request
+  throttle, retry with `Retry-After`. `backupImage(title)` fills card art for
+  articles with no lead image, from the REST `media-list` gallery set.
+- `src/lib/draw.ts` — `buildPack()`: fill a candidate bucket per rarity from the
+  right source, hand it to the unchanged pure `generatePack()` (pack.ts), then
+  fetch an exact link count per chosen card. Sources: common ← `generator=random`;
+  rare/mythic ← pageviews *top* lists; uncommon ← top-list tails + links harvested
+  off popular articles.
+- `src/lib/packQueue.ts` — up to 10 fully-built packs kept ready in the background,
+  persisted to `localStorage`. `take()` is synchronous; the queue refills after.
+  Empty queue + API error ⇒ PackOpener shows an error + Retry.
+- `src/lib/collection.ts` — v2 store; entries carry the full `Card` (no pool to
+  look them up in). `computeProgress` is counts only (no completion %).
+- **Rarity thresholds** unchanged in `src/lib/rarity.ts`: `uncommon 10k / rare 150k
+  / mythic 400k` monthly views. The `strengthFromLinks` / `defenceFromBytes` log
+  formulas (once the "wild mode" fallback) are now the only stat path.
+- **Foil** (`src/lib/foil.ts`) is a rarity-independent holographic finish rolled per
+  pack (~1 pack in 7), 3 tiers, `Foil.svelte`. See §6.
+- **Themes** (`src/lib/tags.ts`) — `deriveTags()` maps an article's Wikipedia
+  categories (added to the enrich call as `prop=categories`) to a small fixed set
+  (`TAGS`: cinema, music, sport, politics, war, history, science, geography, arts,
+  games, nature, business, religion), each a keyword regex scored over the category
+  titles. Stored on `Card.tags`; the Collection view shows a theme filter row and
+  batch-backfills tags on older cards via `wiki.fetchCategories`.
+
+Known follow-ups: diversify uncommon sourcing (link-harvest skews to whatever the
+seed article is about), collection export/import, a "packs ready" affordance.
 
 ---
 
@@ -89,32 +104,31 @@ Two features only:
 ## 2. Architecture
 
 ```
-Static SPA. One generated data file. No server, no API keys.
+Static SPA. No server, no API keys, no bundled data. Browser only.
 
-           build time (run manually, output committed)
-  ┌─────────────────────────────────────────────────────┐
-  │ scripts/build-pools.ts                               │
-  │   Wikimedia APIs ──▶ compute stats+rarity ──▶        │
-  │   src/data/pools.json  (committed to the repo)       │
-  └─────────────────────────────────────────────────────┘
-
-           runtime (browser only)
-  ┌─────────────────────────────────────────────────────┐
-  │ pools.json (bundled)                                 │
-  │   └─▶ pack.ts  builds a guaranteed-distribution pack │
-  │         └─▶ PackOpener.svelte  reveal animation      │
-  │               └─▶ collection store (localStorage)    │
-  │                     └─▶ Collection.svelte            │
-  └─────────────────────────────────────────────────────┘
+  Wikimedia APIs
+     │
+  src/lib/wiki.ts      origin=*, throttled, retrying fetch helpers
+     │
+  src/lib/draw.ts      buildPack(): stock a bucket per rarity from the right
+     │                 source, then generatePack() (pack.ts, pure, unchanged)
+     │                 picks the 7 with the guaranteed 4/2/1 split
+  src/lib/packQueue.ts up to 10 packs kept ready in the background,
+     │                 persisted to localStorage
+  PackOpener.svelte    take() a ready pack instantly → stacked-deck reveal
+     │
+  collection store (localStorage, v2 — stores the full Card)
+     │
+  Collection.svelte    counts + filters + sort (no completion %)
 ```
 
-**Why a build-time pool instead of live random draws:**
-Guaranteed rarity distribution needs a known population per rarity. `list=random` is
-uniform, so filling the "rare-or-better" slot live would mean fetching and discarding
-dozens of random articles per pack (rare+ is a low single-digit % of all articles),
-plus 2 extra calls per card for stats. A committed pool makes packs instant, works
-offline, and makes collection-completion a real goal. Live "wild" draws can be added
-later as an optional mode (§7).
+**Why live works despite the guaranteed distribution.** A known population per
+rarity is still needed — `list=random` alone can't fill the rare slot. The fix is
+**per-slot sources**: `generator=random` for commons, the pageviews *top* lists for
+rare/mythic, link-harvesting for the uncommon middle. Latency (keep fetching for a
+real uncommon; one `parse` call per card for exact links) is hidden behind the
+background **prefetch queue** of 10 packs, so opening is instant. No offline mode:
+empty queue + unreachable API ⇒ error + retry.
 
 ---
 
@@ -204,11 +218,12 @@ popularity score.
 
 ---
 
-## 4. Build script — `scripts/build-pools.ts`
+## 4. Build script — HISTORICAL, removed
 
-Node script (`tsx scripts/build-pools.ts`), not part of the app bundle. Output
-`src/data/pools.json` is **committed** so `npm install && npm run dev` works with no
-network.
+`scripts/build-pools.ts` and the committed `src/data/pools.json` were deleted in the
+live-fetch rework (§0). The API notes in §3 still apply — the browser client in
+`src/lib/wiki.ts` uses the same endpoints. The steps below are kept only as a record
+of how the old crawl worked.
 
 ### Steps
 
@@ -307,27 +322,33 @@ font: "Inter", "General Sans", system-ui, sans-serif;  // one family, weights 40
 mono for stat numbers: "IBM Plex Mono", ui-monospace
 ```
 
-Rarity accents (used for border, badge, foil):
+Rarity accents (`--common/uncommon/rare/mythic`, plus `--mythic-2` gold) drive the
+corner **rarity glyph** — a small mark whose treatment escalates with rarity
+(`Card.svelte`). Rarity itself no longer implies any shine.
 
-```
---common:   #9aa3ad   (cool grey, matte)
---uncommon: #4ea77a   (green)
---rare:     #4a7fd4   (blue)
---mythic:   linear-gradient / conic foil — violet #8b5cf6 → gold #f5c542
-```
+Holographic **foil** is a separate axis (`src/lib/foil.ts`, `--foil-1..5` palette):
+
+- Rolled per pack, `FOIL_PACK_CHANCE = 1/7`, tiers weighted `.62 / .28 / .1`.
+- Any card of any rarity can be foil; the collection keeps the best tier pulled.
+- 3 tiers in `Foil.svelte`, `Shimmer / Radiant / Cosmic`:
+  1. the old mythic conic shimmer + pointer-tracked sheen (subtle baseline)
+  2. + tilt-reactive holographic bands + a travelling shine
+  3. + a hue-cycling rainbow wash + twinkling sparkles + a pulsing border
+- Suppressed while `faceDown` (would leak the pull, and blend/animation layers
+  bleed past `backface-visibility`).
 
 Respect `prefers-color-scheme` only loosely — the game is dark by design; still honour
-`prefers-reduced-motion` (disable flips/foil, cross-fade instead).
+`prefers-reduced-motion` (global CSS freezes every animation; static gradients remain).
 
 ### Card component — `src/components/Card.svelte`
 
 - Fixed aspect ratio (2.5 : 3.5, like a real card). Responsive via `container` units.
-- Layout: image band (top ~55%), title, thin rule, stat row (`STR nn  DEF nn`),
-  rarity badge bottom-right.
-- Typographic fallback: large title set in the image band on a rarity-tinted field.
-- `rare`/`mythic`: 1px accent border + subtle pointer-tracked foil (animated
-  `conic-gradient` masked by a highlight). Mythic adds a slow shimmer.
-- Props: `card`, `faceDown?`, `interactive?`. Emits `flip`.
+- Layout: image band (top ~55%), title, thin rule, centred `STR / DEF` row.
+- Typographic fallback: large initials in the image band on a rarity-tinted field.
+- Corner rarity glyph (top-left), `NEW` / `×N` tags (top-right).
+- Foil finish (`card.foil > 0`): iridescent border + glow (tiered) and a `<Foil>`
+  overlay. `foil` is surfaced by name in the pack-open summary and card detail.
+- Props: `card`, `faceDown?`, `dupCount?`, `isNew?`, `onclick?`.
 
 ### Screens
 
@@ -349,45 +370,29 @@ Respect `prefers-color-scheme` only loosely — the game is dark by design; stil
 ```
 wikitcg/
   index.html
-  package.json          # scripts: dev, build, preview, pools (tsx build-pools), test
+  package.json          # scripts: dev, build, preview, check, test
   vite.config.ts
-  tsconfig.json
-  svelte.config.js
-  PLAN.md               # this file
-  README.md
-  scripts/
-    build-pools.ts
-    lib/wiki.ts         # shared fetch helpers (also importable by src if wild mode added)
-    .cache/             # gitignored
+  tsconfig.json  tsconfig.node.json  svelte.config.js
+  PLAN.md  README.md
   src/
-    main.ts
+    main.ts             # mount immediately, then packQueue.start()
     App.svelte
     lib/
-      pools.ts          # import pools.json, typed accessors, rarity buckets
+      wiki.ts           # browser Wikimedia client (fetch helpers, toCard)
+      draw.ts           # buildPack(): per-rarity sourcing + generatePack()
+      packQueue.ts      # background prefetch of up to 10 ready packs
       rarity.ts         # thresholds + stat formulas (pure, tested)
-      pack.ts           # generatePack(): guaranteed-distribution draw
-      collection.ts     # persisted Svelte store over localStorage
+      pack.ts           # generatePack(): guaranteed-distribution draw (pure, tested)
+      collection.ts     # persisted store (v2: stores full Card) + computeProgress
       types.ts
     components/
-      Card.svelte
-      Foil.svelte
-      PackOpener.svelte
-      CardReveal.svelte
-      Collection.svelte
-      CardDetail.svelte
-      RarityBadge.svelte
-      NavBar.svelte
-    stores/
-      view.ts           # 'open' | 'collection'
-    styles/
-      tokens.css
-      global.css
-    data/
-      pools.json         # generated, committed
-      pools.sample.json  # tiny fixture for early dev
+      Card.svelte  Foil.svelte  RarityBadge.svelte
+      PackOpener.svelte  Collection.svelte  CardDetail.svelte  NavBar.svelte
+    stores/view.ts      # 'open' | 'collection'
+    styles/tokens.css  styles/global.css
   tests/
-    rarity.test.ts
-    pack.test.ts
+    rarity.test.ts  pack.test.ts  collection.test.ts
+    render.test.ts  live.test.ts   # live.test.ts stubs fetch
 ```
 
 ### `pack.ts` — generation algorithm
@@ -442,16 +447,23 @@ Export/import collection as JSON — nice, cheap, do it if time allows.
 
 ## 9. Constraints & gotchas
 
-- **No backend, no secrets, no build-time env needed to run the app.** `pools.json` is
-  the only data dependency and it's committed.
-- **Image licensing:** lead images are Wikimedia-hosted, mostly free-licensed but not
-  universally. This is fine for a personal project; always link back to the article
-  (attribution) on the card detail. If distributing widely, revisit.
-- **`pools.json` size:** ~4,000 cards with short extracts ≈ 1–2 MB. Acceptable
-  bundled+gzipped; if it grows, lazy-load it (`await import`) after first paint, or
-  split by rarity.
+- **No backend, no secrets, no build-time env.** All card data is fetched live at
+  runtime; nothing is bundled or committed.
+- **Image licensing:** card art is Wikimedia-hosted. `wiki.ts` sets
+  `pilicense=any`, so fair-use images (album/film/book covers, logos, box art) are
+  included — most of the interesting art. Fine for a personal project; the card
+  detail links back to the article for attribution. Revisit before distributing.
+- **`pageimages` hides non-free images by default** (`pilicense=free`). Without
+  `pilicense=any` roughly every media article (album, film, game, company) is
+  imageless. Anything still imageless is resolved lazily by `Card.svelte`: any
+  face-up card with no art calls `backupImage()` (REST `media-list`) once and
+  hands the URL back via `onResolveImage`, which every caller wires to
+  `collection.setImage` — so grid, detail and reveal all self-heal and persist.
 - **Action API needs `origin=*` in the URL** or the request fails CORS — easy to
-  forget.
+  forget. Do **not** add custom request headers (e.g. `Api-User-Agent`) from the
+  browser — that triggers a preflight the API doesn't answer.
+- **Rate limits:** make requests in series (250 ms gap in `wiki.ts`), honour
+  `Retry-After` on 429. The background queue absorbs the latency.
 - **`pageviews` trailing `null`** for the current day — filter before summing.
 - **`parse&prop=links`** includes templates/categories/files and redlinks — filter to
   `ns 0 && exists`.

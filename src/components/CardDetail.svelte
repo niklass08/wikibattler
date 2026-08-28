@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fade, scale } from 'svelte/transition';
-  import type { Card as CardT } from '../lib/types';
+  import { FOIL_LABEL, type Card as CardT } from '../lib/types';
+  import { TAG_LABEL, type Tag } from '../lib/tags';
   import Card from './Card.svelte';
   import RarityBadge from './RarityBadge.svelte';
   import { collection } from '../lib/collection';
@@ -27,11 +28,19 @@
     tabindex="-1"
   >
     <div class="art">
-      <Card {card} dupCount={count} />
+      <Card {card} dupCount={count} onResolveImage={(url) => collection.setImage(card.id, url)} />
     </div>
 
     <div class="info">
-      <RarityBadge rarity={card.rarity} />
+      <div class="badges">
+        <RarityBadge rarity={card.rarity} />
+        {#if card.foil}
+          <span class="foil-chip foil-{card.foil}">✦ {FOIL_LABEL[card.foil]} foil</span>
+        {/if}
+        {#each (card.tags ?? []) as t (t)}
+          <span class="tag-chip">{TAG_LABEL[t as Tag] ?? t}</span>
+        {/each}
+      </div>
       <h2>{card.title}</h2>
       <p class="extract">{card.extract || 'No summary available.'}</p>
 
@@ -72,18 +81,18 @@
   .panel {
     position: relative;
     display: grid;
-    grid-template-columns: 240px 1fr;
-    gap: 28px;
-    width: min(680px, 100%);
+    grid-template-columns: 300px 1fr;
+    gap: 36px;
+    width: min(820px, 100%);
     max-height: 90dvh;
     overflow: auto;
-    padding: 24px;
+    padding: 32px;
     border-radius: var(--radius);
     background: var(--surface);
     border: 1px solid var(--line);
   }
   .art {
-    width: 240px;
+    width: 300px;
   }
   .info {
     display: flex;
@@ -91,15 +100,48 @@
     gap: 12px;
     min-width: 0;
   }
+  .badges {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+  }
+  .tag-chip {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text-dim);
+  }
+  .foil-chip {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    color: var(--foil-1);
+  }
+  .foil-chip.foil-2 {
+    color: var(--foil-2);
+  }
+  .foil-chip.foil-3 {
+    color: var(--foil-3);
+    text-shadow: 0 0 8px color-mix(in srgb, var(--foil-3) 55%, transparent);
+  }
   h2 {
-    font-size: 22px;
+    font-size: 28px;
     font-weight: 700;
     letter-spacing: -0.02em;
     line-height: 1.15;
   }
   .extract {
     color: var(--text-dim);
-    font-size: 14px;
+    font-size: 15px;
   }
   .grid {
     display: grid;
@@ -131,11 +173,11 @@
   }
   .foot .btn {
     flex: 1;
-    font-size: 13px;
-    padding: 10px 14px;
+    font-size: 14px;
+    padding: 12px 16px;
   }
 
-  @media (max-width: 560px) {
+  @media (max-width: 620px) {
     .panel {
       grid-template-columns: 1fr;
       justify-items: center;

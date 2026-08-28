@@ -1,11 +1,8 @@
 <script lang="ts">
   import { view } from '../stores/view';
   import { collection } from '../lib/collection';
-  import { cardById, totalCards } from '../lib/pools';
 
-  const owned = $derived(
-    Object.keys($collection).filter((id) => cardById.has(Number(id))).length
-  );
+  const owned = $derived(Object.keys($collection).length);
 </script>
 
 <header class="nav">
@@ -18,7 +15,7 @@
       <button class:active={$view === 'open'} onclick={() => view.set('open')}>Open</button>
       <button class:active={$view === 'collection'} onclick={() => view.set('collection')}>
         Collection
-        <span class="count mono">{owned}/{totalCards}</span>
+        {#if owned > 0}<span class="count mono">{owned}</span>{/if}
       </button>
     </nav>
   </div>
@@ -37,12 +34,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 58px;
+    height: 68px;
   }
   .mark {
     font-weight: 700;
     letter-spacing: -0.02em;
-    font-size: 16px;
+    font-size: 20px;
   }
   .mark span {
     color: var(--text-dim);
@@ -55,10 +52,11 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 7px 12px;
+    padding: 9px 16px;
     border-radius: var(--radius-sm);
     color: var(--text-dim);
     font-weight: 500;
+    font-size: 15px;
     transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
   }
   nav button:hover {
@@ -69,7 +67,7 @@
     background: var(--surface);
   }
   .count {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-faint);
   }
 </style>

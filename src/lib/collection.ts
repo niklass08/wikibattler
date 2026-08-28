@@ -2,7 +2,8 @@ import { writable } from 'svelte/store';
 import type { Card, Collection, OwnedEntry, Rarity } from './types';
 import { RARITIES } from './types';
 
-const COLLECTION_KEY = 'wikitcg:collection:v1';
+// v2: entries carry the full card — there is no static pool to look it up in.
+const COLLECTION_KEY = 'wikitcg:collection:v2';
 const PACKS_KEY = 'wikitcg:packs-opened:v1';
 
 function safeGet(key: string): string | null {
@@ -26,7 +27,17 @@ function loadCollection(): Collection {
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw) as Collection;
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    if (!parsed || typeof parsed !== 'object') return {};
+    // keep only well-formed entries (a card with an id)
+    const clean: Collection = {};
+    for (const [id, entry] of Object.entries(parsed)) {
+      if (entry && typeof entry === 'object' && entry.card && typeof entry.card.id === 'number') {
+        entry.card.foil ??= 0; // cards saved before the foil system
+        entry.card.tags ??= []; // cards saved before the tag system
+        clean[Number(id)] = entry;
+      }
+    }
+    return clean;
   } catch {
     return {};
   }
@@ -52,9 +63,17 @@ function createCollection() {
         for (const card of cards) {
           const existing = next[card.id];
           if (existing) {
-            next[card.id] = { ...existing, count: existing.count + 1 };
+            // refresh card data, but keep the best foil finish, any image and tags
+            const foil = Math.max(existing.card.foil, card.foil) as Card['foil'];
+            const image = card.image ?? existing.card.image;
+            const tags = card.tags.length ? card.tags : existing.card.tags;
+            next[card.id] = {
+              ...existing,
+              count: existing.count + 1,
+              card: { ...card, foil, image, tags }
+            };
           } else {
-            next[card.id] = { count: 1, firstOpenedAt: now } satisfies OwnedEntry;
+            next[card.id] = { count: 1, firstOpenedAt: now, card } satisfies OwnedEntry;
             newIds.add(card.id);
           }
         }
@@ -62,6 +81,26 @@ function createCollection() {
         return next;
       });
       return newIds;
+    },
+    /** Backfill card art for an already-owned card that was pulled without one. */
+    setImage(id: number, url: string) {
+      update((c) => {
+        const entry = c[id];
+        if (!entry || entry.card.image) return c;
+        const next = { ...c, [id]: { ...entry, card: { ...entry.card, image: url } } };
+        safeSet(COLLECTION_KEY, JSON.stringify(next));
+        return next;
+      });
+    },
+    /** Backfill thematic tags on a card pulled before the tag system. */
+    setTags(id: number, tags: string[]) {
+      update((c) => {
+        const entry = c[id];
+        if (!entry) return c;
+        const next = { ...c, [id]: { ...entry, card: { ...entry.card, tags } } };
+        safeSet(COLLECTION_KEY, JSON.stringify(next));
+        return next;
+      });
     },
     reset() {
       set({});
@@ -87,28 +126,30 @@ function createPacksOpened() {
 export const collection = createCollection();
 export const packsOpened = createPacksOpened();
 
-export interface RarityProgress {
+export interface RarityCount {
   rarity: Rarity;
   owned: number;
-  total: number;
 }
 
-export function computeProgress(
-  col: Collection,
-  cardById: Map<number, Card>,
-  totalsByRarity: Record<Rarity, number>
-): { perRarity: RarityProgress[]; ownedUnique: number; total: number } {
+/**
+ * Pure collection stats. There is no fixed universe to complete against any
+ * more, so this is counts only: unique cards, total cards (with duplicates),
+ * and unique owned per rarity.
+ */
+export function computeProgress(col: Collection): {
+  perRarity: RarityCount[];
+  ownedUnique: number;
+  totalCards: number;
+} {
   const owned: Record<Rarity, number> = { common: 0, uncommon: 0, rare: 0, mythic: 0 };
-  for (const idStr of Object.keys(col)) {
-    const card = cardById.get(Number(idStr));
-    if (card) owned[card.rarity] += 1;
+  let totalCards = 0;
+  for (const entry of Object.values(col)) {
+    owned[entry.card.rarity] += 1;
+    totalCards += entry.count;
   }
-  const perRarity = RARITIES.map((rarity) => ({
-    rarity,
-    owned: owned[rarity],
-    total: totalsByRarity[rarity]
-  }));
-  const ownedUnique = perRarity.reduce((s, r) => s + r.owned, 0);
-  const total = perRarity.reduce((s, r) => s + r.total, 0);
-  return { perRarity, ownedUnique, total };
+  return {
+    perRarity: RARITIES.map((rarity) => ({ rarity, owned: owned[rarity] })),
+    ownedUnique: Object.keys(col).length,
+    totalCards
+  };
 }
