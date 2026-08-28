@@ -10,21 +10,23 @@
   import CardBack from './CardBack.svelte';
   import CardDetail from './CardDetail.svelte';
 
-  type Phase = 'idle' | 'waiting' | 'reveal';
+  const NEXT_DECK = [0, 1, 2, 3, 4];
 
-  let phase = $state<Phase>('idle');
   let pack = $state<CardT[]>([]);
   let opened = $state(0);
   let newIds = $state<Set<number>>(new Set());
   let detail = $state<CardT | null>(null);
+  /** set when "open" was clicked but the queue had nothing ready yet */
+  let pendingOpen = $state(false);
   let sectionEl = $state<HTMLElement>();
   let drawnEl = $state<HTMLElement>();
 
+  const hasPack = $derived(pack.length > 0);
   const remaining = $derived(pack.slice(opened));
   // Draw order in the DOM; CSS places the newest card at the right on desktop
   // and at the top on mobile (see .drawn).
   const drawn = $derived(pack.slice(0, opened));
-  const allOpen = $derived(pack.length > 0 && opened >= pack.length);
+  const allOpen = $derived(hasPack && opened >= pack.length);
   const bestRarity = $derived(rank(drawn));
   const packFoil = $derived<FoilTier>(
     pack.reduce<FoilTier>((m, c) => (((c.foil ?? 0) > m ? c.foil : m) as FoilTier), 0)
@@ -41,26 +43,30 @@
     opened = 0;
     newIds = collection.addCards(cards);
     packsOpened.increment();
-    phase = 'reveal';
+    pendingOpen = false;
+    void drawNext(); // flip the first card straight away
   }
 
+  /** One gesture for the whole loop: deal the next pack (queue permitting). */
   function openPack() {
     const ready = take();
-    if (ready) {
-      startReveal(ready);
-    } else {
-      phase = 'waiting';
-    }
+    if (ready) startReveal(ready);
+    else pendingOpen = true;
   }
 
-  // While waiting, grab the first pack the background queue produces.
+  // Resolve a pending open once the background queue catches up.
   $effect(() => {
-    if (phase !== 'waiting') return;
+    if (!pendingOpen) return;
     if ($queueStatus.ready > 0) {
       const ready = take();
       if (ready) startReveal(ready);
     }
   });
+
+  function retryOpen() {
+    retry();
+    pendingOpen = true;
+  }
 
   async function drawNext() {
     if (opened >= pack.length) return;
@@ -84,17 +90,10 @@
       drawNext();
     }
   }
-
-  function reset() {
-    phase = 'idle';
-    pack = [];
-    opened = 0;
-    newIds = new Set();
-  }
 </script>
 
 <section class="opener wrap" bind:this={sectionEl}>
-  {#if phase === 'idle'}
+  {#if !hasPack && !pendingOpen && !$queueStatus.error}
     <div class="idle" in:scale={{ duration: 300, start: 0.94 }}>
       <button class="deck deck--open" type="button" onclick={openPack} aria-label="Open pack">
         <span class="pane"></span><span class="pane"></span>
@@ -113,7 +112,7 @@
         {/if}
       </p>
     </div>
-  {:else if phase === 'waiting'}
+  {:else if !hasPack}
     <div class="waiting" in:scale={{ duration: 300, start: 0.94 }}>
       <div class="deck" aria-hidden="true">
         <span class="pane"></span><span class="pane"></span>
@@ -122,8 +121,7 @@
       {#if $queueStatus.error}
         <h1>Couldn't reach Wikipedia</h1>
         <p class="sub">{$queueStatus.error}</p>
-        <button class="btn" onclick={retry}>Try again</button>
-        <button class="btn btn--ghost" onclick={reset}>Back</button>
+        <button class="btn" onclick={retryOpen}>Try again</button>
       {:else}
         <h1>Building your pack…</h1>
         <p class="sub">Fetching articles and tallying their links.</p>
@@ -150,23 +148,37 @@
               {/each}
             </div>
             <p class="hint mono">{remaining.length} card{remaining.length === 1 ? '' : 's'} left · click to open</p>
-            {#if godPack && opened > 0}
+            {#if godPack && opened >= 2}
               <p class="god" in:scale={{ duration: 260, start: 0.9 }}>✦ GOD PACK ✦</p>
             {/if}
           </div>
         {:else}
-          <div class="done" in:scale={{ duration: 240, start: 0.96 }}>
-            {#if godPack}
-              <span class="god" in:scale={{ duration: 260, start: 0.9 }}>✦ GOD PACK ✦</span>
-              <span class="result mono">all seven foiled · best pull
-                <b class="rarity-{bestRarity}">{bestRarity}</b></span>
-            {:else}
-              <span class="result mono">Best pull: <b class="rarity-{bestRarity}">{bestRarity}</b></span>
-              {#if packFoil}
-                <span class="result mono foil-{packFoil}">✦ {FOIL_LABEL[packFoil]} foil</span>
+          <div class="stack-wrap" in:scale={{ duration: 240, start: 0.96 }}>
+            <button
+              class="stack deck--next"
+              type="button"
+              onclick={openPack}
+              disabled={pendingOpen}
+              aria-label="Open another pack"
+            >
+              {#each NEXT_DECK as i (i)}
+                <div class="stacked" style="--i:{i}"><CardBack /></div>
+              {/each}
+            </button>
+            <p class="hint mono">
+              {#if pendingOpen && $queueStatus.error}
+                couldn't reach Wikipedia ·
+                <button class="link" type="button" onclick={retryOpen}>retry</button>
+              {:else if pendingOpen}
+                stocking the next pack…
+              {:else if godPack}
+                <span class="god">✦ god pack</span> · click for another
+              {:else}
+                best pull <b class="rarity-{bestRarity}">{bestRarity}</b>{#if packFoil} ·
+                  <span class="foil-{packFoil}">{FOIL_LABEL[packFoil]} foil</span>{/if} ·
+                click for another
               {/if}
-            {/if}
-            <button class="btn" onclick={reset}>Open another</button>
+            </p>
           </div>
         {/if}
       </div>
@@ -177,6 +189,7 @@
             class="slot"
             class:pop={card.rarity === 'rare' || card.rarity === 'mythic' || (card.foil ?? 0) > 0}
             in:fly={{ y: -32, duration: 280 }}
+            out:fly={{ y: 18, duration: 130 }}
             animate:flip={{ duration: 220 }}
           >
             <Card
@@ -213,9 +226,6 @@
     align-items: center;
     text-align: center;
     gap: 18px;
-  }
-  .waiting .btn + .btn {
-    margin-top: 4px;
   }
   .waiting .deck {
     animation: deck-pulse 1.5s ease-in-out infinite;
@@ -302,6 +312,8 @@
     width: clamp(200px, 40vw, 244px);
     aspect-ratio: 2.5 / 3.5;
     cursor: pointer;
+    padding: 0;
+    container-type: inline-size;
     -webkit-tap-highlight-color: transparent;
     transition: transform var(--dur) var(--ease);
   }
@@ -310,6 +322,14 @@
   }
   .stack:active {
     transform: scale(0.985);
+  }
+  /* "open another" deck shown when a pack is done — card backs, not <Card>s */
+  .deck--next:disabled {
+    cursor: default;
+  }
+  .deck--next .stacked {
+    border-radius: var(--card-radius);
+    overflow: hidden;
   }
   .stacked {
     position: absolute;
@@ -327,12 +347,27 @@
     z-index: 1;
     color: var(--text-faint);
     font-size: 13px;
+    text-align: center;
+    max-width: 34ch;
+    line-height: 1.7;
   }
-  .done {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
+  .hint b {
+    color: var(--accent);
+    text-transform: capitalize;
+  }
+  .hint .foil-1 {
+    color: var(--foil-1);
+  }
+  .hint .foil-2 {
+    color: var(--foil-2);
+  }
+  .hint .foil-3 {
+    color: var(--foil-3);
+  }
+  .link {
+    color: var(--text);
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 
   /* --- opened cards, below the deck --- */
@@ -360,24 +395,6 @@
     margin-top: 28px;
     min-height: 46px;
   }
-  .result {
-    color: var(--text-dim);
-    font-size: 14px;
-  }
-  .result b {
-    color: var(--accent);
-    text-transform: capitalize;
-  }
-  .result.foil-1 {
-    color: var(--foil-1);
-  }
-  .result.foil-2 {
-    color: var(--foil-2);
-  }
-  .result.foil-3 {
-    color: var(--foil-3);
-    text-shadow: 0 0 10px color-mix(in srgb, var(--foil-3) 55%, transparent);
-  }
   .god {
     position: relative;
     z-index: 1;
@@ -400,6 +417,10 @@
     background-clip: text;
     color: transparent;
     animation: god-hue 4s linear infinite;
+  }
+  .hint .god {
+    font-size: inherit;
+    letter-spacing: 0.14em;
   }
   @keyframes god-hue {
     to {
