@@ -100,8 +100,8 @@
       </button>
       <h1>Open a pack</h1>
       <p class="sub">
-        Seven cards drawn live from Wikipedia. Four common, two uncommon, one rare
-        or better.
+        Seven cards drawn live from Wikipedia. Four common, two uncommon, a
+        guaranteed rare — and every card rolls to upgrade, the deeper the better.
       </p>
       <button class="btn" onclick={openPack}>Open pack</button>
       <p class="tally mono">

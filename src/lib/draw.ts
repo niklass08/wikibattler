@@ -1,7 +1,7 @@
 /**
  * Live pack assembly. Fills a candidate pool per rarity from the right API
- * source, then hands it to the pure `generatePack()` from pack.ts (which keeps
- * the guaranteed 4 / 2 / 1 distribution and its own tests).
+ * source, then hands it to the pure `generatePack()` from pack.ts (a 4C/2U/1R
+ * modal pack where every slot can roll upgrades).
  *
  * Sources per rarity:
  *   common   — generator=random (the overwhelming majority of articles)
@@ -17,8 +17,12 @@ import { applyPackFoil } from './foil';
 import { rarityFromViews } from './rarity';
 import * as wiki from './wiki';
 
-/** How many candidates to stock per rarity before assembling a pack. */
-const TARGET: Record<Rarity, number> = { common: 6, uncommon: 3, rare: 2, mythic: 1 };
+/**
+ * How many candidates to stock per rarity before assembling a pack. Above the
+ * modal 4C / 2U / 1R so upgrade rolls have cards to draw from; generatePack's
+ * fallback covers the rare case where they don't.
+ */
+const TARGET: Record<Rarity, number> = { common: 7, uncommon: 5, rare: 4, mythic: 2 };
 
 const shuffle = <T>(a: T[]): T[] => {
   for (let i = a.length - 1; i > 0; i--) {

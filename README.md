@@ -10,7 +10,8 @@ A trading-card game built on Wikipedia. Every article is a card:
 - **Themes** — thematic tags (Cinema, Politics, Geography, History, …) classified
   from the article's Wikipedia categories; filter the collection by them
 
-Two screens: **open packs** (7 cards, guaranteed 4 common / 2 uncommon / 1 rare-or-better)
+Two screens: **open packs** (7 cards — modally 4 common / 2 uncommon / 1 rare, with
+an upgrade roll on every card and a guaranteed rare-or-better in the last slot)
 and **view your collection**. Fully client-side — no backend, no API keys. Your
 collection lives in `localStorage`.
 

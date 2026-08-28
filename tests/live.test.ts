@@ -162,17 +162,19 @@ describe('buildPack (live assembly)', () => {
     vi.unstubAllGlobals();
   });
 
-  it('assembles a 7-card pack with the guaranteed split from API data', async () => {
+  it('assembles a 7-card pack from API data, last card rare-or-better', async () => {
     const pack = await buildPack();
+    const order = ['common', 'uncommon', 'rare', 'mythic'];
+    const base = ['common', 'common', 'common', 'common', 'uncommon', 'uncommon', 'rare'];
 
     expect(pack).toHaveLength(7);
     expect(new Set(pack.map((c) => c.id)).size).toBe(7);
 
-    const counts = { common: 0, uncommon: 0, rare: 0, mythic: 0 };
-    for (const c of pack) counts[c.rarity]++;
-    expect(counts.common).toBe(4);
-    expect(counts.uncommon).toBe(2);
-    expect(counts.rare + counts.mythic).toBe(1);
+    // slot 7 is a guaranteed rare-or-better; no slot ever drops below its base
+    expect(order.indexOf(pack[6].rarity)).toBeGreaterThanOrEqual(order.indexOf('rare'));
+    pack.forEach((c, i) =>
+      expect(order.indexOf(c.rarity)).toBeGreaterThanOrEqual(order.indexOf(base[i]))
+    );
 
     // each card carries an exact link count fetched per-card
     for (const c of pack) expect(c.raw.links).toBe(150);

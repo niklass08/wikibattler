@@ -80,10 +80,10 @@ Two features only:
 
 - **Card art:** use the article lead image; typographic fallback when absent.
 - **Pack economy:** unlimited, free. Button to open a pack, no currency, no cooldown.
-- **Pack rarity:** *guaranteed distribution* per 7-card pack (real-TCG feel):
-  - 4 × common
-  - 2 × uncommon
-  - 1 × rare-or-better — this slot upgrades to `mythic` ~1 in 8 openings (tune later).
+- **Pack rarity:** base 4 common / 2 uncommon / 1 rare, then **every slot rolls to
+  upgrade** one tier at a time until a roll misses; the chance rises with slot
+  depth (`upgradeChance`). Last slot is a guaranteed rare that can reach mythic.
+  Modal pack ≈ 4C/2U/1R (~55%). Constants in `pack.ts` (§ generation algorithm).
 - **Duplicates:** allowed; collection tracks a count per card ("×3" badge). No crafting.
 - **Stack:** Vite + **Svelte 5** (runes) + TypeScript. Hand-rolled CSS with design
   tokens (no Tailwind/UI kit). Svelte transitions for animation; add `motion`/GSAP
@@ -113,7 +113,7 @@ Static SPA. No server, no API keys, no bundled data. Browser only.
      │
   src/lib/draw.ts      buildPack(): stock a bucket per rarity from the right
      │                 source, then generatePack() (pack.ts, pure, unchanged)
-     │                 picks the 7 with the guaranteed 4/2/1 split
+     │                 picks the 7 (4C/2U/1R modal, per-slot upgrade rolls)
   src/lib/packQueue.ts up to 10 packs kept ready in the background,
      │                 persisted to localStorage
   PackOpener.svelte    take() a ready pack instantly → stacked-deck reveal
@@ -384,7 +384,7 @@ wikitcg/
       draw.ts           # buildPack(): per-rarity sourcing + generatePack()
       packQueue.ts      # background prefetch of up to 10 ready packs
       rarity.ts         # thresholds + stat formulas (pure, tested)
-      pack.ts           # generatePack(): guaranteed-distribution draw (pure, tested)
+      pack.ts           # generatePack(): 4C/2U/1R modal, per-slot upgrade rolls (pure, tested)
       collection.ts     # persisted store (v2: stores full Card) + computeProgress
       types.ts
     components/
@@ -400,16 +400,24 @@ wikitcg/
 ### `pack.ts` — generation algorithm
 
 ```
+PACK_BASE = [common, common, common, common, uncommon, uncommon, rare]
+
 generatePack(pools, rng = Math.random):
-  pick 4 distinct from pools.common
-  pick 2 distinct from pools.uncommon
-  slot7:
-    roll = rng()
-    if roll < 1/8 and pools.mythic non-empty: pick 1 from pools.mythic
-    else: pick 1 from pools.rare  (fallback to mythic, then uncommon, if a bucket is empty)
-  return 7 cards in reveal order [commons…, uncommons…, chase]
-  // "distinct" = within this pack; duplicates across packs are expected.
-  // Seedable rng so tests are deterministic.
+  for depth 0..6:
+    rarity = rollUpgrades(PACK_BASE[depth], depth, rng)   // climb the ladder
+    pick 1 distinct card of that rarity (FALLBACK tries higher tiers first)
+  return the 7 cards in reveal order
+
+rollUpgrades(base, depth, rng):
+  p = UPGRADE_MIN + UPGRADE_STEP * depth   // ~3% shallow → ~13% deepest
+  rarity = base
+  while rarity < mythic and rng() < p: rarity = next tier   // stop on first miss
+  return rarity
+
+// Slot 7 is a guaranteed rare that can climb to mythic. Nothing else is a
+// floor — even a shallow common can chain all the way up, just rarely.
+// Modal pack ≈ 4C / 2U / 1R (~55%). "distinct" = within a pack; cross-pack
+// dupes expected. Seedable rng so tests are deterministic.
 ```
 
 ### `collection.ts` — persistence

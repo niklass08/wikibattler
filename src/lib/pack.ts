@@ -9,21 +9,53 @@ export interface RarityPools {
 
 export const PACK_SIZE = 7;
 
-/** Slots per pack, in reveal order. The final slot is the "chase". */
-export const PACK_LAYOUT: Rarity[] = [
+export type Rng = () => number;
+
+/**
+ * Base rarity of each slot, in reveal order, before upgrade rolls. Slot 7 is a
+ * guaranteed rare-or-better; the rest form the modal 4-common / 2-uncommon pack.
+ * Nothing here is a hard floor except the guaranteed rare — every slot then
+ * rolls to climb the ladder.
+ */
+export const PACK_BASE: Rarity[] = [
   'common',
   'common',
   'common',
   'common',
   'uncommon',
   'uncommon',
-  'rare' // may upgrade to mythic
+  'rare'
 ];
 
-/** Probability the chase slot upgrades from rare to mythic. */
-export const MYTHIC_UPGRADE_CHANCE = 1 / 8;
+/**
+ * Per-roll upgrade chance for a slot, by its 0-based depth: shallow slots
+ * almost never upgrade, the deepest slots often do. A card keeps rolling one
+ * tier up (at this fixed chance) until a roll fails or it reaches mythic — so
+ * a lucky shallow common could still chain all the way up, just rarely.
+ */
+export const UPGRADE_MIN = 0.03;
+export const UPGRADE_STEP = 0.017;
 
-export type Rng = () => number;
+export function upgradeChance(depth: number): number {
+  return UPGRADE_MIN + UPGRADE_STEP * depth;
+}
+
+const NEXT_TIER: Record<Rarity, Rarity | null> = {
+  common: 'uncommon',
+  uncommon: 'rare',
+  rare: 'mythic',
+  mythic: null
+};
+
+/** Climb the rarity ladder from `base`, stopping at the first failed roll. */
+export function rollUpgrades(base: Rarity, depth: number, rng: Rng): Rarity {
+  const p = upgradeChance(depth);
+  let rarity = base;
+  while (NEXT_TIER[rarity] && rng() < p) {
+    rarity = NEXT_TIER[rarity] as Rarity;
+  }
+  return rarity;
+}
 
 export function splitByRarity(cards: Card[]): RarityPools {
   const pools: RarityPools = { common: [], uncommon: [], rare: [], mythic: [] };
@@ -45,10 +77,10 @@ function pickDistinct(source: Card[], count: number, used: Set<number>, rng: Rng
   return picked;
 }
 
-/** Rarity fallback order when a bucket is empty. */
+/** Rarity fallback order when a bucket is empty — try higher tiers before dropping. */
 const FALLBACK: Record<Rarity, Rarity[]> = {
   common: ['common', 'uncommon', 'rare', 'mythic'],
-  uncommon: ['uncommon', 'rare', 'common', 'mythic'],
+  uncommon: ['uncommon', 'rare', 'mythic', 'common'],
   rare: ['rare', 'mythic', 'uncommon', 'common'],
   mythic: ['mythic', 'rare', 'uncommon', 'common']
 };
@@ -62,23 +94,20 @@ function drawSlot(rarity: Rarity, pools: RarityPools, used: Set<number>, rng: Rn
 }
 
 /**
- * Build one pack with a guaranteed rarity distribution (4 common / 2 uncommon /
- * 1 rare-or-better). "Distinct" applies within a pack; duplicates across packs
- * are expected. `rng` is injectable so tests are deterministic.
+ * Build one pack: each slot starts from its base rarity (PACK_BASE), rolls up
+ * the ladder (rollUpgrades), then draws a distinct card of that rarity. The
+ * last slot is a guaranteed rare that can climb to mythic. The modal pack is
+ * 4 common / 2 uncommon / 1 rare. `rng` is injectable so tests are deterministic.
  */
 export function generatePack(pools: RarityPools, rng: Rng = Math.random): Card[] {
   const used = new Set<number>();
   const pack: Card[] = [];
 
-  for (const slot of PACK_LAYOUT.slice(0, PACK_SIZE - 1)) {
-    const card = drawSlot(slot, pools, used, rng);
+  for (let depth = 0; depth < PACK_SIZE; depth++) {
+    const rarity = rollUpgrades(PACK_BASE[depth], depth, rng);
+    const card = drawSlot(rarity, pools, used, rng);
     if (card) pack.push(card);
   }
-
-  const chaseRarity: Rarity =
-    pools.mythic.length > 0 && rng() < MYTHIC_UPGRADE_CHANCE ? 'mythic' : 'rare';
-  const chase = drawSlot(chaseRarity, pools, used, rng);
-  if (chase) pack.push(chase);
 
   // Backfill from any pool if some buckets were too small to fill every slot.
   if (pack.length < PACK_SIZE) {
