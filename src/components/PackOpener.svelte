@@ -65,9 +65,11 @@
   async function drawNext() {
     if (opened >= pack.length) return;
     opened += 1;
+    // keep the newest card in view on small screens; the deck area holds its
+    // size when the pack finishes, so opening the last card causes no reflow
+    if (allOpen) return;
     await tick();
-    if (allOpen) sectionEl?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    else drawnEl?.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    drawnEl?.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
   async function revealRest() {
@@ -130,7 +132,7 @@
     </div>
   {:else}
     <div class="reveal">
-      <div class="stage" class:compact={allOpen}>
+      <div class="stage">
         {#if !allOpen}
           <div class="stack-wrap">
             <div
@@ -282,14 +284,12 @@
   }
 
   /* --- reveal: click-through deck --- */
+  /* tall enough to hold the deck + hint + (god) banner, so swapping in the
+     smaller summary when the pack finishes never shifts the card row below */
   .stage {
     display: grid;
     place-items: center;
-    min-height: 380px;
-  }
-  .stage.compact {
-    min-height: 0;
-    padding-block: 8px 4px;
+    min-height: 440px;
   }
   .stack-wrap {
     display: flex;
@@ -412,7 +412,7 @@
       padding-block: clamp(16px, 4vh, 36px);
     }
     .stage {
-      min-height: 300px;
+      min-height: 380px;
     }
     .stack {
       width: min(56vw, 210px);
