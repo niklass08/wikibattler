@@ -21,9 +21,9 @@
   let drawnEl = $state<HTMLElement>();
 
   const remaining = $derived(pack.slice(opened));
-  // newest first, so the card you just flipped sits at the top of the list —
-  // no scrolling to find it on a phone
-  const drawn = $derived(pack.slice(0, opened).reverse());
+  // Draw order in the DOM; CSS places the newest card at the right on desktop
+  // and at the top on mobile (see .drawn).
+  const drawn = $derived(pack.slice(0, opened));
   const allOpen = $derived(pack.length > 0 && opened >= pack.length);
   const bestRarity = $derived(rank(drawn));
   const packFoil = $derived<FoilTier>(
@@ -67,7 +67,7 @@
     opened += 1;
     await tick();
     if (allOpen) sectionEl?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    else drawnEl?.firstElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    else drawnEl?.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
   async function revealRest() {
@@ -423,6 +423,9 @@
     .drawn {
       margin-top: 16px;
       gap: 10px;
+      /* newest card at the top on a phone */
+      flex-direction: row-reverse;
+      flex-wrap: wrap-reverse;
     }
     .slot {
       width: min(43vw, 150px);
