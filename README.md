@@ -6,7 +6,7 @@ A trading-card game built on Wikipedia. Every article is a card:
 - **Defence** ← byte length of the article
 - **Rarity** (common / uncommon / rare / mythic) ← the article's popularity (pageviews)
 - **Foil** — a rarity-independent holographic finish (Shimmer / Radiant / Cosmic),
-  rolled ~1 pack in 7
+  rolled ~1 pack in 7; ~1 pack in 25 is a **god pack** with all 7 cards foiled
 - **Themes** — thematic tags (Cinema, Politics, Geography, History, …) classified
   from the article's Wikipedia categories; filter the collection by them
 

@@ -39,7 +39,8 @@ Key pieces:
   / mythic 400k` monthly views. The `strengthFromLinks` / `defenceFromBytes` log
   formulas (once the "wild mode" fallback) are now the only stat path.
 - **Foil** (`src/lib/foil.ts`) is a rarity-independent holographic finish rolled per
-  pack (~1 pack in 7), 3 tiers, `Foil.svelte`. See §6.
+  pack (~1 pack in 7), 3 tiers, `Foil.svelte`. ~1 pack in 25 is a **god pack**
+  (`GOD_PACK_CHANCE`) — every one of its 7 cards foiled. See §6.
 - **Themes** (`src/lib/tags.ts`) — `deriveTags()` maps an article's Wikipedia
   categories (added to the enrich call as `prop=categories`) to a small fixed set
   (`TAGS`: cinema, music, sport, politics, war, history, science, geography, arts,
@@ -329,6 +330,7 @@ corner **rarity glyph** — a small mark whose treatment escalates with rarity
 Holographic **foil** is a separate axis (`src/lib/foil.ts`, `--foil-1..5` palette):
 
 - Rolled per pack, `FOIL_PACK_CHANCE = 1/7`, tiers weighted `.62 / .28 / .1`.
+- `GOD_PACK_CHANCE = 1/25`: all 7 cards foiled; PackOpener shows a rainbow banner.
 - Any card of any rarity can be foil; the collection keeps the best tier pulled.
 - 3 tiers in `Foil.svelte`, `Shimmer / Radiant / Cosmic`:
   1. the old mythic conic shimmer + pointer-tracked sheen (subtle baseline)

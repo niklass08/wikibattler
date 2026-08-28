@@ -4,6 +4,7 @@
   import { flip } from 'svelte/animate';
   import { collection, packsOpened } from '../lib/collection';
   import { take, retry, status as queueStatus, MAX_PREFETCH } from '../lib/packQueue';
+  import { isGodPack } from '../lib/foil';
   import { FOIL_LABEL, type Card as CardT, type FoilTier } from '../lib/types';
   import Card from './Card.svelte';
   import CardBack from './CardBack.svelte';
@@ -28,6 +29,7 @@
   const packFoil = $derived<FoilTier>(
     pack.reduce<FoilTier>((m, c) => (((c.foil ?? 0) > m ? c.foil : m) as FoilTier), 0)
   );
+  const godPack = $derived(isGodPack(pack));
 
   function rank(cards: CardT[]): string {
     const order = ['common', 'uncommon', 'rare', 'mythic'];
@@ -146,12 +148,21 @@
               {/each}
             </div>
             <p class="hint mono">{remaining.length} card{remaining.length === 1 ? '' : 's'} left · click to open</p>
+            {#if godPack && opened > 0}
+              <p class="god" in:scale={{ duration: 260, start: 0.9 }}>✦ GOD PACK ✦</p>
+            {/if}
           </div>
         {:else}
           <div class="done" in:scale={{ duration: 240, start: 0.96 }}>
-            <span class="result mono">Best pull: <b class="rarity-{bestRarity}">{bestRarity}</b></span>
-            {#if packFoil}
-              <span class="result mono foil-{packFoil}">✦ {FOIL_LABEL[packFoil]} foil</span>
+            {#if godPack}
+              <span class="god" in:scale={{ duration: 260, start: 0.9 }}>✦ GOD PACK ✦</span>
+              <span class="result mono">all seven foiled · best pull
+                <b class="rarity-{bestRarity}">{bestRarity}</b></span>
+            {:else}
+              <span class="result mono">Best pull: <b class="rarity-{bestRarity}">{bestRarity}</b></span>
+              {#if packFoil}
+                <span class="result mono foil-{packFoil}">✦ {FOIL_LABEL[packFoil]} foil</span>
+              {/if}
             {/if}
             <button class="btn" onclick={reset}>Open another</button>
           </div>
@@ -362,6 +373,32 @@
   .result.foil-3 {
     color: var(--foil-3);
     text-shadow: 0 0 10px color-mix(in srgb, var(--foil-3) 55%, transparent);
+  }
+  .god {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    letter-spacing: 0.32em;
+    font-size: clamp(13px, 3.4vw, 17px);
+    text-transform: uppercase;
+    background: linear-gradient(
+      90deg,
+      var(--foil-5),
+      var(--foil-2),
+      var(--foil-1),
+      var(--foil-4),
+      var(--foil-3),
+      var(--foil-5)
+    );
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: god-hue 4s linear infinite;
+  }
+  @keyframes god-hue {
+    to {
+      background-position: 300% 0;
+    }
   }
 
   @media (max-width: 600px) {
