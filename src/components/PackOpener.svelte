@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { fly, scale } from 'svelte/transition';
   import { flip } from 'svelte/animate';
   import { collection, packsOpened } from '../lib/collection';
@@ -15,9 +16,13 @@
   let opened = $state(0);
   let newIds = $state<Set<number>>(new Set());
   let detail = $state<CardT | null>(null);
+  let sectionEl = $state<HTMLElement>();
+  let drawnEl = $state<HTMLElement>();
 
   const remaining = $derived(pack.slice(opened));
-  const drawn = $derived(pack.slice(0, opened));
+  // newest first, so the card you just flipped sits at the top of the list —
+  // no scrolling to find it on a phone
+  const drawn = $derived(pack.slice(0, opened).reverse());
   const allOpen = $derived(pack.length > 0 && opened >= pack.length);
   const bestRarity = $derived(rank(drawn));
   const packFoil = $derived<FoilTier>(
@@ -55,12 +60,18 @@
     }
   });
 
-  function drawNext() {
-    if (opened < pack.length) opened += 1;
+  async function drawNext() {
+    if (opened >= pack.length) return;
+    opened += 1;
+    await tick();
+    if (allOpen) sectionEl?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    else drawnEl?.firstElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
-  function revealRest() {
+  async function revealRest() {
     opened = pack.length;
+    await tick();
+    sectionEl?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
   function onStackKey(e: KeyboardEvent) {
@@ -78,7 +89,7 @@
   }
 </script>
 
-<section class="opener wrap">
+<section class="opener wrap" bind:this={sectionEl}>
   {#if phase === 'idle'}
     <div class="idle" in:scale={{ duration: 300, start: 0.94 }}>
       <button class="deck deck--open" type="button" onclick={openPack} aria-label="Open pack">
@@ -117,7 +128,7 @@
     </div>
   {:else}
     <div class="reveal">
-      <div class="stage">
+      <div class="stage" class:compact={allOpen}>
         {#if !allOpen}
           <div class="stack-wrap">
             <div
@@ -147,7 +158,7 @@
         {/if}
       </div>
 
-      <div class="drawn">
+      <div class="drawn" bind:this={drawnEl}>
         {#each drawn as card (card.id)}
           <div
             class="slot"
@@ -265,6 +276,10 @@
     place-items: center;
     min-height: 380px;
   }
+  .stage.compact {
+    min-height: 0;
+    padding-block: 8px 4px;
+  }
   .stack-wrap {
     display: flex;
     flex-direction: column;
@@ -349,12 +364,28 @@
     text-shadow: 0 0 10px color-mix(in srgb, var(--foil-3) 55%, transparent);
   }
 
-  @media (max-width: 520px) {
+  @media (max-width: 600px) {
+    .opener {
+      padding-block: clamp(16px, 4vh, 36px);
+    }
     .stage {
-      min-height: 320px;
+      min-height: 300px;
+    }
+    .stack {
+      width: min(56vw, 210px);
+    }
+    .stack-wrap {
+      gap: 14px;
+    }
+    .drawn {
+      margin-top: 16px;
+      gap: 10px;
     }
     .slot {
-      width: clamp(112px, 40vw, 150px);
+      width: min(43vw, 150px);
+    }
+    .actions {
+      margin-top: 16px;
     }
   }
 </style>
