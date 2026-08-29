@@ -22,6 +22,7 @@ function makeCard(id: number, rarity: Rarity): Card {
     strength: 10,
     defence: 10,
     foil: 0,
+    negated: false,
     tags: [],
     raw: { links: 0, bytes: 0, monthlyViews: 0 }
   };

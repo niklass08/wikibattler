@@ -29,6 +29,14 @@ export const FOIL_LABEL: Record<Exclude<FoilTier, 0>, string> = {
   3: 'Cosmic'
 };
 
+/**
+ * Negated finish — a separate rarity axis that completes the foil system.
+ * Rolled per card, independently of foil and at a tenth of the foil chance; a
+ * card can be both foil and negated. A negated card renders with its colours
+ * (and its foil's colours) inverted. See foil.ts.
+ */
+export const NEGATED_LABEL = 'Negated';
+
 /** Raw, un-normalised measurements taken from the Wikimedia APIs. */
 export interface CardRaw {
   /** Count of internal mainspace links in the article. Drives strength. */
@@ -55,6 +63,11 @@ export interface Card {
   defence: number;
   /** Holographic finish (rarity-independent). 0 for the vast majority of cards. */
   foil: FoilTier;
+  /**
+   * Negated finish — colours inverted. Rolled per card, independent of foil and
+   * far rarer. false for all but a sliver of cards.
+   */
+  negated: boolean;
   /** Thematic tags (cinema, politics, …) from the article's categories. See tags.ts. */
   tags: string[];
   raw: CardRaw;

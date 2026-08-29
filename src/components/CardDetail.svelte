@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fade, scale } from 'svelte/transition';
-  import { FOIL_LABEL, type Card as CardT } from '../lib/types';
+  import { FOIL_LABEL, NEGATED_LABEL, type Card as CardT } from '../lib/types';
   import { TAG_LABEL, type Tag } from '../lib/tags';
   import Card from './Card.svelte';
   import RarityBadge from './RarityBadge.svelte';
@@ -36,6 +36,9 @@
         <RarityBadge rarity={card.rarity} />
         {#if card.foil}
           <span class="foil-chip foil-{card.foil}">✦ {FOIL_LABEL[card.foil]} foil</span>
+        {/if}
+        {#if card.negated}
+          <span class="negated-chip">◐ {NEGATED_LABEL}</span>
         {/if}
         {#each (card.tags ?? []) as t (t)}
           <span class="tag-chip">{TAG_LABEL[t as Tag] ?? t}</span>
@@ -132,6 +135,16 @@
   .foil-chip.foil-3 {
     color: var(--foil-3);
     text-shadow: 0 0 8px color-mix(in srgb, var(--foil-3) 55%, transparent);
+  }
+  .negated-chip {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    color: var(--bg);
+    background: var(--text);
   }
   h2 {
     font-size: 28px;

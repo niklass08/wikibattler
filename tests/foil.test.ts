@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyPackFoil, isGodPack, GOD_PACK_CHANCE } from '../src/lib/foil';
+import { applyPackFoil, isGodPack, GOD_PACK_CHANCE, NEGATE_CHANCE, FOIL_PACK_CHANCE } from '../src/lib/foil';
 import { seededRng } from '../src/lib/pack';
 import type { Card } from '../src/lib/types';
 
@@ -14,6 +14,7 @@ const mkPack = (): Card[] =>
     strength: 1,
     defence: 1,
     foil: 0,
+    negated: false,
     tags: [],
     raw: { links: 0, bytes: 0, monthlyViews: 0 }
   }));
@@ -53,6 +54,33 @@ describe('applyPackFoil', () => {
     expect(rate).toBeLessThan(0.17);
     expect(tiers[1]).toBeGreaterThan(tiers[2]);
     expect(tiers[2]).toBeGreaterThan(tiers[3]);
+  });
+
+  it('negates a card about a tenth as often as the foil pack chance, independent of foil', () => {
+    expect(NEGATE_CHANCE).toBeCloseTo(FOIL_PACK_CHANCE / 10);
+    let negated = 0;
+    let negatedAndFoiled = 0;
+    let cards = 0;
+    const N = 4000;
+    for (let seed = 0; seed < N; seed++) {
+      for (const c of applyPackFoil(mkPack(), seededRng(seed))) {
+        cards++;
+        if (c.negated) negated++;
+        if (c.negated && c.foil > 0) negatedAndFoiled++;
+      }
+    }
+    const rate = negated / cards;
+    expect(rate).toBeGreaterThan(NEGATE_CHANCE * 0.7);
+    expect(rate).toBeLessThan(NEGATE_CHANCE * 1.3);
+    // the two axes are independent, so the overlap does occur
+    expect(negatedAndFoiled).toBeGreaterThan(0);
+  });
+
+  it('never negates an empty pack and does not mutate the input', () => {
+    expect(applyPackFoil([], seededRng(1))).toEqual([]);
+    const input = mkPack();
+    applyPackFoil(input, seededRng(3));
+    expect(input.every((c) => c.negated === false)).toBe(true);
   });
 
   it('is a god pack (all 7 foiled) roughly 1 in 25', () => {

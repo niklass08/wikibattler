@@ -15,6 +15,7 @@ const sample: CardT = {
   strength: 58,
   defence: 77,
   foil: 0,
+  negated: false,
   tags: [],
   raw: { links: 340, bytes: 84000, monthlyViews: 500000 }
 };

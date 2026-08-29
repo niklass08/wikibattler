@@ -296,6 +296,7 @@ export function toCard({ page, monthlyViews, links }: CardInputs): Card {
     strength: strengthFromLinks(links),
     defence: defenceFromBytes(page.bytes),
     foil: 0,
+    negated: false,
     tags: deriveTags(page.categories, page.extract),
     raw: { links, bytes: page.bytes, monthlyViews }
   };

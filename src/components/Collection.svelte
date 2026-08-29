@@ -64,7 +64,9 @@
           return d !== 0 ? d : a.title.localeCompare(b.title);
         }
         if (sort === 'foil') {
-          const d = (b.foil ?? 0) - (a.foil ?? 0);
+          // negated is the scarcer finish — float it above the foil tiers
+          const rank = (c: CardT) => (c.negated ? 10 : 0) + (c.foil ?? 0);
+          const d = rank(b) - rank(a);
           return d !== 0 ? d : a.title.localeCompare(b.title);
         }
         if (sort === 'dupes') {
@@ -123,7 +125,7 @@
           <option value="recent">Recent</option>
           <option value="name">Name</option>
           <option value="rarity">Rarity</option>
-          <option value="foil">Foil</option>
+          <option value="foil">Foil &amp; negated</option>
           <option value="dupes">Duplicates</option>
           <option value="strength">Strength</option>
           <option value="defence">Defence</option>

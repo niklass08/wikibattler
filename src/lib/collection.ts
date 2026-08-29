@@ -33,6 +33,7 @@ function loadCollection(): Collection {
     for (const [id, entry] of Object.entries(parsed)) {
       if (entry && typeof entry === 'object' && entry.card && typeof entry.card.id === 'number') {
         entry.card.foil ??= 0; // cards saved before the foil system
+        entry.card.negated ??= false; // cards saved before the negated system
         entry.card.tags ??= []; // cards saved before the tag system
         clean[Number(id)] = entry;
       }
@@ -63,14 +64,15 @@ function createCollection() {
         for (const card of cards) {
           const existing = next[card.id];
           if (existing) {
-            // refresh card data, but keep the best foil finish, any image and tags
+            // refresh card data, but keep the best finishes, any image and tags
             const foil = Math.max(existing.card.foil, card.foil) as Card['foil'];
+            const negated = existing.card.negated || card.negated;
             const image = card.image ?? existing.card.image;
             const tags = card.tags.length ? card.tags : existing.card.tags;
             next[card.id] = {
               ...existing,
               count: existing.count + 1,
-              card: { ...card, foil, image, tags }
+              card: { ...card, foil, negated, image, tags }
             };
           } else {
             next[card.id] = { count: 1, firstOpenedAt: now, card } satisfies OwnedEntry;

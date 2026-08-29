@@ -49,6 +49,10 @@
   // backface-visibility, which would leak the pull before the reveal.
   const foilTier = $derived<FoilTier>(faceDown ? 0 : (card.foil ?? 0));
   const foiled = $derived(foilTier > 0);
+  // Negated is an independent finish that inverts the card's colours — the foil
+  // layers included, since the filter sits on the whole front face. Suppressed
+  // face-down for the same reason foil is: a hidden card must give nothing away.
+  const negated = $derived(!faceDown && !!card.negated);
   const initials = $derived(
     card.title
       .replace(/\(.*?\)/g, '')
@@ -69,6 +73,7 @@
     class="flipper"
     class:faceDown
     class:foiled
+    class:negated
     data-foil={foiled ? foilTier : undefined}
     type="button"
     aria-label={faceDown ? 'Unrevealed card' : `${card.title}, ${card.rarity}`}
@@ -183,6 +188,18 @@
         0 14px 52px color-mix(in srgb, var(--foil-5) 36%, transparent),
         0 0 32px color-mix(in srgb, var(--foil-1) 32%, transparent);
     }
+  }
+
+  /* negated — an independent finish: the whole front face runs through a colour
+     inversion, which sweeps up the foil layers with it. The border and shadow
+     invert along with everything else, so they're authored to land right *after*
+     the flip: a dark ring here reads as a pale halo on the finished card. */
+  .flipper.negated .front {
+    filter: invert(1);
+    border-color: #202024;
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.55),
+      0 10px 34px rgba(0, 0, 0, 0.6);
   }
 
   .front {

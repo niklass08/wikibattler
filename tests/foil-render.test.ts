@@ -13,6 +13,7 @@ const base: CardT = {
   strength: 10,
   defence: 10,
   foil: 0,
+  negated: false,
   tags: [],
   raw: { links: 0, bytes: 0, monthlyViews: 0 }
 };
@@ -42,5 +43,18 @@ describe('foil tiers render the right layers', () => {
     expect(b).toContain('class="rainbow');
     expect(b).toContain('class="sparks');
     expect((b.match(/--sx:/g) ?? []).length).toBe(8);
+  });
+
+  it('negated adds the negated class, face-up only, and stacks with foil', () => {
+    const up = render(Card, { props: { card: { ...base, negated: true } } }).body;
+    expect(up).toContain('negated');
+
+    const down = render(Card, { props: { card: { ...base, negated: true }, faceDown: true } }).body;
+    expect(down).not.toContain('negated');
+
+    // independent of foil — a card can be both
+    const both = render(Card, { props: { card: { ...base, foil: 2, negated: true } } }).body;
+    expect(both).toContain('negated');
+    expect(both).toContain('foiled');
   });
 });

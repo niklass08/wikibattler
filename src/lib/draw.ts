@@ -161,6 +161,7 @@ function toStub(c: Candidate): Card {
     strength: 0,
     defence: 0,
     foil: 0,
+    negated: false,
     tags: [],
     raw: { links: 0, bytes: c.page.bytes, monthlyViews: c.monthlyViews }
   };

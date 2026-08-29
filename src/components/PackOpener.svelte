@@ -32,6 +32,7 @@
     pack.reduce<FoilTier>((m, c) => (((c.foil ?? 0) > m ? c.foil : m) as FoilTier), 0)
   );
   const godPack = $derived(isGodPack(pack));
+  const hasNegated = $derived(pack.some((c) => c.negated));
 
   function rank(cards: CardT[]): string {
     const order = ['common', 'uncommon', 'rare', 'mythic'];
@@ -175,7 +176,8 @@
                 <span class="god">✦ god pack</span> · click for another
               {:else}
                 best pull <b class="rarity-{bestRarity}">{bestRarity}</b>{#if packFoil} ·
-                  <span class="foil-{packFoil}">{FOIL_LABEL[packFoil]} foil</span>{/if} ·
+                  <span class="foil-{packFoil}">{FOIL_LABEL[packFoil]} foil</span>{/if}{#if hasNegated}
+                  · <span class="negated">negated</span>{/if} ·
                 click for another
               {/if}
             </p>
@@ -187,7 +189,10 @@
         {#each drawn as card (card.id)}
           <div
             class="slot"
-            class:pop={card.rarity === 'rare' || card.rarity === 'mythic' || (card.foil ?? 0) > 0}
+            class:pop={card.rarity === 'rare' ||
+              card.rarity === 'mythic' ||
+              (card.foil ?? 0) > 0 ||
+              card.negated}
             in:fly={{ y: -32, duration: 280 }}
             out:fly={{ y: 18, duration: 130 }}
             animate:flip={{ duration: 220 }}
@@ -363,6 +368,12 @@
   }
   .hint .foil-3 {
     color: var(--foil-3);
+  }
+  .hint .negated {
+    color: var(--bg);
+    background: var(--text);
+    padding: 0 5px;
+    border-radius: 4px;
   }
   .link {
     color: var(--text);

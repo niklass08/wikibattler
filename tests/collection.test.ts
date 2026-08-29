@@ -14,6 +14,7 @@ function card(id: number, rarity: Rarity): Card {
     strength: 1,
     defence: 1,
     foil: 0,
+    negated: false,
     tags: [],
     raw: { links: 0, bytes: 0, monthlyViews: 0 }
   };
@@ -58,6 +59,15 @@ describe('collection.addCards foil handling', () => {
     collection.addCards([{ ...base, foil: 3 }]); // an upgrade
     expect(get(collection)[10].card.foil).toBe(3);
     expect(get(collection)[10].count).toBe(3);
+    collection.reset();
+  });
+
+  it('keeps the negated finish once a card has ever been pulled negated', () => {
+    collection.reset();
+    const base = card(11, 'rare');
+    collection.addCards([{ ...base, negated: true }]);
+    collection.addCards([{ ...base, negated: false }]); // a plain re-pull
+    expect(get(collection)[11].card.negated).toBe(true);
     collection.reset();
   });
 
