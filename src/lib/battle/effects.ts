@@ -186,11 +186,16 @@ export interface ResolvedRoundEffect {
   overdrive?: { delay: number };
 }
 
-/** The scheduled effect a card brings, from its strongest round-effect tag. */
+/**
+ * The scheduled effect a card brings. It has to be one of the card's two
+ * strongest themes (tags are score-sorted) — and deriveTags already refuses to
+ * hand a specialist theme like `disease` a *secondary* slot on a single stray
+ * category hit — so a film with one "…COVID-19 pandemic" category stays a film.
+ */
 export function roundEffectFor(card: Card): ResolvedRoundEffect | null {
-  for (const tag of card.tags ?? []) {
-    const def = ROUND_EFFECTS[tag as RoundEffectTag];
-    if (def) return resolveRoundEffect(tag as RoundEffectTag, def, card);
+  for (const tag of (card.tags ?? []).slice(0, 2) as RoundEffectTag[]) {
+    const def = ROUND_EFFECTS[tag];
+    if (def) return resolveRoundEffect(tag, def, card);
   }
   return null;
 }

@@ -105,6 +105,39 @@ const FIXTURES: Record<string, { cats: string[]; expect: string; extract?: strin
       'Technology companies of the United States'
     ],
     expect: 'business'
+  },
+  Ebola: {
+    cats: [
+      'Ebola',
+      'Biological weapons',
+      'Hemorrhagic fevers',
+      'Viral diseases',
+      'Zoonoses',
+      'Tropical diseases'
+    ],
+    expect: 'disease'
+  },
+  'Boeing 747': {
+    cats: [
+      'Boeing 747',
+      '1960s United States airliners',
+      'Quadjets',
+      'Wide-body aircraft',
+      'Low-wing aircraft',
+      'Aircraft first flown in 1969'
+    ],
+    expect: 'vehicles'
+  },
+  'Marie Curie': {
+    cats: [
+      '1867 births',
+      'French physicists',
+      'French chemists',
+      'Nobel laureates in Physics',
+      'Nobel laureates in Chemistry',
+      'Women physicists'
+    ],
+    expect: 'scientists'
   }
 };
 
@@ -143,6 +176,33 @@ describe('deriveTags', () => {
       'United States Army soldiers'
     ]);
     expect(tags).toEqual(['sport']);
+  });
+
+  it('does not give a film a specialist theme from one stray category', () => {
+    // Avatar: Fire and Ash — a film with two production-history covid categories
+    const tags = deriveTags([
+      '2025 science fiction films',
+      '2025 American films',
+      'American epic films',
+      'Films directed by James Cameron',
+      'American sequel films',
+      'Film productions suspended due to the COVID-19 pandemic',
+      'Films postponed due to the COVID-19 pandemic'
+    ]);
+    expect(tags[0]).toBe('cinema');
+    expect(tags).not.toContain('disease');
+  });
+
+  it('a disease that is also historic still leads or co-leads with disease', () => {
+    const tags = deriveTags([
+      'Black Death',
+      '14th-century disease outbreaks',
+      'Plague (disease)',
+      'Pandemics',
+      'Medieval health disasters',
+      'Second plague pandemic'
+    ]);
+    expect(tags).toContain('disease');
   });
 
   it('keeps multiple themes when each is well supported', () => {
