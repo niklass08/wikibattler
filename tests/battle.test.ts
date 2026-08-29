@@ -7,7 +7,12 @@ import { GOLDFISH } from '../src/lib/battle/opponents';
 import { battleTeam } from '../src/lib/battle/team';
 import { effectFor, effectIdFor, resolveEffect, sumMods } from '../src/lib/battle/effects';
 import { EFFECTS, TAG_EFFECT } from '../src/lib/battle/effects.config';
-import { cardBattleStat, battleBreakdown } from '../src/lib/battle/cardStat';
+import {
+  cardBattleStat,
+  battleBreakdown,
+  showsStrength,
+  showsDefence
+} from '../src/lib/battle/cardStat';
 import { TAGS } from '../src/lib/tags';
 
 function card(over: Partial<Card> = {}): Card {
@@ -181,6 +186,15 @@ describe('environmental effects config', () => {
 });
 
 describe('cardBattleStat (the card-face line)', () => {
+  it('a fighter shows STR only, a field card DEF only', () => {
+    const fighter = card({ extract: 'She is a professional footballer.' });
+    const field = card({ tags: ['cinema'], extract: 'Jaws is a 1975 film.' });
+    expect(showsStrength(fighter)).toBe(true);
+    expect(showsDefence(fighter)).toBe(false);
+    expect(showsStrength(field)).toBe(false);
+    expect(showsDefence(field)).toBe(true);
+  });
+
   it('a fighter shows its attack contribution', () => {
     const s = cardBattleStat(card({ strength: 480, extract: 'She is a professional footballer.' }));
     expect(s.fighter).toBe(true);

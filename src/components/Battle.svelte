@@ -54,6 +54,14 @@
     owned
       .filter((c) => rarityFilter === 'all' || c.rarity === rarityFilter)
       .filter((c) => roleFilter === 'all' || roleOf.get(c.id) === roleFilter)
+      // a stat sort only lists cards that actually show that stat
+      .filter((c) =>
+        rsort === 'strength'
+          ? roleOf.get(c.id) === 'living'
+          : rsort === 'defence'
+            ? roleOf.get(c.id) === 'abstract'
+            : true
+      )
       .sort((a, b) => {
         if (rsort === 'name') return a.title.localeCompare(b.title);
         if (rsort === 'strength') return b.strength - a.strength;

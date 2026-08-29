@@ -4,6 +4,7 @@
   import { TAG_LABEL, TAGS, deriveTags, type Tag } from '../lib/tags';
   import { view } from '../stores/view';
   import { fetchCategories } from '../lib/wiki';
+  import { showsStrength, showsDefence } from '../lib/battle/cardStat';
   import Card from './Card.svelte';
   import CardDetail from './CardDetail.svelte';
   import type { Card as CardT } from '../lib/types';
@@ -63,6 +64,8 @@
       .filter((c) => !favOnly || $favourites.has(c.id))
       .filter((c) => rarityFilter === 'all' || c.rarity === rarityFilter)
       .filter((c) => tagFilter === 'all' || (c.tags ?? []).includes(tagFilter))
+      // a stat sort only lists cards that actually show that stat
+      .filter((c) => (sort === 'strength' ? showsStrength(c) : sort === 'defence' ? showsDefence(c) : true))
       .sort((a, b) => {
         if (sort === 'name') return a.title.localeCompare(b.title);
         if (sort === 'strength') return b.strength - a.strength;

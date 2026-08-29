@@ -25,6 +25,14 @@ export interface CardBattleStat {
   hint: string;
 }
 
+/**
+ * Which base stat the card face actually shows for this card (see Card.svelte):
+ * fighters display STR, field cards display DEF. Used to keep a "sort by
+ * defence" from surfacing cards whose defence is hidden, and vice versa.
+ */
+export const showsStrength = (card: Card): boolean => classifyCard(card) === 'living';
+export const showsDefence = (card: Card): boolean => classifyCard(card) === 'abstract';
+
 export function cardBattleStat(card: Card): CardBattleStat {
   if (classifyCard(card) === 'living') {
     return {
