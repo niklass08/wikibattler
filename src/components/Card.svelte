@@ -3,6 +3,7 @@
   import { RARITY_GLYPH, RARITY_LABEL } from '../lib/types';
   import { backupImage } from '../lib/wiki';
   import { cardBattleStat } from '../lib/battle/cardStat';
+  import { cardSignature } from '../lib/battle/signatures';
   import Foil from './Foil.svelte';
   import CardBack from './CardBack.svelte';
 
@@ -75,6 +76,8 @@
   const battle = $derived(
     card.strength === 0 && card.defence === 0 ? null : cardBattleStat(card)
   );
+  // mythic signature — a permanent build-around ability, shown face-up only
+  const signature = $derived(faceDown ? null : cardSignature(card));
 </script>
 
 <div class="card rarity-{card.rarity}">
@@ -125,6 +128,11 @@
               </span>
             {/if}
           </div>
+          {#if signature}
+            <div class="sig" title="Signature — {signature.blurb}">
+              <span class="star" aria-hidden="true">★</span>{signature.name}
+            </div>
+          {/if}
         </div>
 
         {#if foiled}<Foil tier={foilTier as Exclude<FoilTier, 0>} />{/if}
@@ -464,6 +472,22 @@
     font-size: 1.15em;
     line-height: 1;
     align-self: center;
+  }
+  /* mythic signature line */
+  .sig {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 6px;
+    font-size: clamp(9px, 3.6cqw, 11px);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--mythic-2);
+  }
+  .sig .star {
+    font-size: 1.1em;
+    line-height: 1;
   }
 
   .back {

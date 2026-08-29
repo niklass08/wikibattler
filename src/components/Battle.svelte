@@ -211,7 +211,7 @@
         </div>
       </div>
 
-      {#if team.abstractCount > 0 || team.roundPlan.effects.length > 0}
+      {#if team.abstractCount > 0 || team.roundPlan.effects.length > 0 || team.signatures.length > 0}
         <ul class="effects">
           {#each team.members as m (m.card.id)}
             {#if m.effect}
@@ -232,6 +232,16 @@
                 <b class="ename">{e.name}</b>
                 <span class="edetail">{e.detail}</span>
                 <span class="efrom">— {e.from}</span>
+              </span>
+            </li>
+          {/each}
+          {#each team.signatures as s (s.from + s.theme)}
+            <li class="sig">
+              <span class="eicon">★</span>
+              <span class="etxt">
+                <b class="ename">{s.name}</b>
+                <span class="edetail">{s.detail}{s.count > 1 ? ` (N=${s.count})` : ''}</span>
+                <span class="efrom">— {s.from}</span>
               </span>
             </li>
           {/each}
@@ -569,6 +579,13 @@
   }
   .effects li.round .ename {
     color: var(--rare);
+  }
+  .effects li.sig .ename,
+  .effects li.sig .eicon {
+    color: var(--mythic-2);
+  }
+  .effects li.sig .ename {
+    font-weight: 700;
   }
   .edetail {
     color: var(--text-dim);

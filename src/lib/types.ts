@@ -70,6 +70,12 @@ export interface Card {
   negated: boolean;
   /** Thematic tags (cinema, politics, …) from the article's categories. See tags.ts. */
   tags: string[];
+  /**
+   * Mythic-only signature ability, keyed to a theme. Rolled once when the card
+   * is pulled and permanent thereafter; null for every non-mythic. See
+   * battle/signatures.config.ts.
+   */
+  signature: string | null;
   raw: CardRaw;
 }
 

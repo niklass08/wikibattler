@@ -17,6 +17,7 @@ import {
   type ResolvedRoundEffect,
   type RoundPlan
 } from './effects';
+import { applySignatures, type ResolvedSignature, type SignatureHooks } from './signatures';
 
 export const TEAM_SIZE = 7;
 export const MAX_MYTHIC = 1;
@@ -40,6 +41,10 @@ export interface TeamStats {
   reflect: number;
   mods: FieldMods;
   roundPlan: RoundPlan;
+  /** mythic signatures resolved against this team */
+  signatures: ResolvedSignature[];
+  /** per-round levers the signatures set; the simulation reads these */
+  hooks: SignatureHooks;
   livingCount: number;
   abstractCount: number;
 }
@@ -70,6 +75,17 @@ export function assembleTeam(cards: Card[]): TeamStats {
     members.map((m) => m.round).filter((r): r is ResolvedRoundEffect => r !== null)
   );
 
+  // mythic signatures fold into mods / roundPlan (mutated) and set the hooks
+  const { applied: signatures, hooks } = applySignatures(
+    members.map((m) => ({
+      card: m.card,
+      effectMods: m.effect?.mods ?? null,
+      effectName: m.effect?.name ?? null
+    })),
+    mods,
+    roundPlan
+  );
+
   const baseHp = cards.reduce((n, c) => n + c.defence, 0);
   const baseAtk = members
     .filter((m) => m.role === 'living')
@@ -86,6 +102,8 @@ export function assembleTeam(cards: Card[]): TeamStats {
     reflect: mods.reflect,
     mods,
     roundPlan,
+    signatures,
+    hooks,
     livingCount: members.filter((m) => m.role === 'living').length,
     abstractCount: members.filter((m) => m.role === 'abstract').length
   };
@@ -141,36 +159,52 @@ export function simulate(team: TeamStats, enemy: Opponent): BattleResult {
   };
 
   const plan = team.roundPlan;
+  const h = team.hooks;
   const noFighters = team.attack <= 0;
-  let atkRamp = 0; // scientists — grows every round
+  const enemyBase = Math.round(enemy.attack * h.enemyAtkMult);
+  let atkRamp = 0; // grows every round (Breakthrough / Crescendo / Compound Interest …)
+  let comboSwings = 0; // fight-wide swing counter for Combo
+  let shields = h.negateEnemyHits; // Divine Shield
 
   for (let n = 1; n <= ROUND_CAP; n++) {
     const lines: LogLine[] = [];
 
-    // scientists ramp the team's attack, a little more every round
+    // attack ramps a little more every round
     if (plan.atkRampPct > 0) {
       atkRamp += plan.atkRampPct;
       lines.push({
         kind: 'field',
-        text: `🧪 Breakthrough — team attack now +${Math.round(atkRamp * 100)}%.`
+        text: `📈 Attack ramp — team attack now +${Math.round(atkRamp * 100)}%.`
       });
     }
-    const hit = noFighters ? 0 : Math.round(team.attack * (1 + atkRamp));
 
-    // your team swings — once, plus one extra per charged vehicle
-    const swings = 1 + plan.overdrives.filter((d) => n % d === 0).length;
+    // this round's per-swing damage: ramp × Long Game (rounds elapsed) × Apex (while healthy)
+    const longGame = 1 + h.longGamePer4 * Math.floor((n - 1) / 4);
+    const apex = playerHp > team.maxHp / 2 ? 1 + h.apexAtkPct : 1;
+    const roundAttack = noFighters ? 0 : Math.round(team.attack * (1 + atkRamp) * longGame * apex);
+
+    // your team swings — once, + one per charged vehicle, + one on a blitz round
+    const overdriveHits = plan.overdrives.filter((d) => n % d === 0).length;
+    const blitzHit = n <= h.blitzRounds ? 1 : 0;
     if (noFighters) {
       lines.push({ kind: 'you', text: 'No fighter on the team — the swing is skipped.' });
     } else {
-      for (let s = 0; s < swings; s++) {
+      for (let s = 0; s < 1 + overdriveHits + blitzHit; s++) {
+        comboSwings += 1;
+        const combo = h.comboEvery > 0 && comboSwings % h.comboEvery === 0;
+        const hit = combo ? Math.round(roundAttack * (1 + h.comboBonus)) : roundAttack;
         enemyHp -= hit;
         damageDealt += hit;
+        const label = combo
+          ? '🎮 Combo — a heavy hit for '
+          : s === 0
+            ? 'Your team hits for '
+            : s <= overdriveHits
+              ? '🚗 Overdrive — an extra strike for '
+              : '🗡️ Blitzkrieg — a second strike for ';
         lines.push({
-          kind: s === 0 ? 'you' : 'field',
-          text:
-            s === 0
-              ? `Your team hits for ${hit}. ${enemy.name} ${clamp(enemyHp + hit)} → ${clamp(enemyHp)}.`
-              : `🚗 Overdrive — an extra strike for ${hit}. ${enemy.name} ${clamp(enemyHp + hit)} → ${clamp(enemyHp)}.`
+          kind: s === 0 && !combo ? 'you' : 'field',
+          text: `${label}${hit}. ${enemy.name} ${clamp(enemyHp + hit)} → ${clamp(enemyHp)}.`
         });
         if (enemyHp <= 0) return end('win', n, lines);
       }
@@ -199,12 +233,24 @@ export function simulate(team: TeamStats, enemy: Opponent): BattleResult {
           kind: 'field',
           text: `🌱 Bloom — ${b.damage} damage. ${enemy.name} ${clamp(enemyHp + b.damage)} → ${clamp(enemyHp)}.`
         });
+        if (h.bloomHealFrac > 0) {
+          const heal = Math.min(Math.round(b.damage * h.bloomHealFrac), team.maxHp - playerHp);
+          if (heal > 0) {
+            playerHp += heal;
+            lines.push({ kind: 'field', text: `🌱 Fast Bloom heals ${heal}. Team → ${clamp(playerHp)}.` });
+          }
+        }
       }
     }
     if (enemyHp <= 0) return end('win', n, lines);
 
     // enemy answers
-    const dmg = enemy.attack;
+    let dmg = enemyBase;
+    if (dmg > 0 && shields > 0) {
+      shields -= 1;
+      dmg = 0;
+      lines.push({ kind: 'field', text: `✨ Divine Shield turns the blow aside.` });
+    }
     if (dmg > 0) {
       playerHp -= dmg;
       damageTaken += dmg;
@@ -224,7 +270,7 @@ export function simulate(team: TeamStats, enemy: Opponent): BattleResult {
           if (enemyHp <= 0) return end('win', n, lines);
         }
       }
-    } else {
+    } else if (enemyBase === 0) {
       lines.push({ kind: 'enemy', text: `${enemy.name} does nothing in particular.` });
     }
 

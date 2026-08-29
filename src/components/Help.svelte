@@ -18,8 +18,10 @@
     type RoundEffectDef,
     type RoundEffectTag
   } from '../lib/battle/effects.config';
+  import { SIGNATURES } from '../lib/battle/signatures.config';
   import { GOLDFISH } from '../lib/battle/opponents';
   import { MAX_MYTHIC, ROUND_CAP, TEAM_SIZE } from '../lib/battle/engine';
+  import { SIGNATURE_LEAN } from '../lib/odds';
 
   const oneIn = (p: number) => Math.round(1 / p);
   const pct = (n: number) => `${Math.round(n * 100)}%`;
@@ -238,6 +240,32 @@
     First side to 0 HP loses. A fight still going after {ROUND_CAP} rounds is a draw — bring more
     attack, or a disease card.
   </p>
+
+  <!-- ─── mythic signatures ────────────────────────────────────────── -->
+  <h2>Mythic signatures</h2>
+  <p>
+    Every mythic rolls one <strong>signature</strong> the moment it's pulled and keeps it for
+    good. It shows as a gold ★ line on the card. The roll is
+    {Math.round(SIGNATURE_LEAN * 100)}% one of the card's own themes and
+    {Math.round((1 - SIGNATURE_LEAN) * 100)}% any of the 17.
+  </p>
+  <p>
+    In a fight a signature pays out scaled by <strong>N</strong> — the number of team cards
+    sharing its theme, the mythic always counted. Build the theme around the mythic and it
+    snowballs.
+  </p>
+  <div class="effects">
+    {#each TAGS as t (t)}
+      {@const s = SIGNATURES[t]}
+      <div class="effect">
+        <span class="i">{s.icon}</span>
+        <div>
+          <b>★ {s.name}</b> <span class="fine">— {TAG_LABEL[t]}</span>
+          <p>{s.blurb}</p>
+        </div>
+      </div>
+    {/each}
+  </div>
 
   <!-- ─── opponents ─────────────────────────────────────────────────── -->
   <h2>Opponents</h2>

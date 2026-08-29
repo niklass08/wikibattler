@@ -15,6 +15,7 @@ const mkPack = (): Card[] =>
     defence: 1,
     foil: 0,
     negated: false,
+    signature: null,
     tags: [],
     raw: { links: 0, bytes: 0, monthlyViews: 0 }
   }));

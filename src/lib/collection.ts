@@ -2,6 +2,7 @@ import { writable } from 'svelte/store';
 import type { Card, Collection, OwnedEntry, Rarity } from './types';
 import { RARITIES } from './types';
 import { defenceFromBytes, strengthFromLinks } from './rarity';
+import { rollSignature } from './signature';
 
 // v2: entries carry the full card — there is no static pool to look it up in.
 const COLLECTION_KEY = 'wikitcg:collection:v2';
@@ -32,20 +33,28 @@ function loadCollection(): Collection {
     if (!parsed || typeof parsed !== 'object') return {};
     // keep only well-formed entries (a card with an id)
     const clean: Collection = {};
+    let dirty = false;
     for (const [id, entry] of Object.entries(parsed)) {
       if (entry && typeof entry === 'object' && entry.card && typeof entry.card.id === 'number') {
         entry.card.foil ??= 0; // cards saved before the foil system
         entry.card.negated ??= false; // cards saved before the negated system
         entry.card.tags ??= []; // cards saved before the tag system
+        entry.card.signature ??= null; // cards saved before the signature system
         // Stats derive purely from raw links/bytes, so re-derive on load — this
         // silently migrates cards saved under an older stat scale.
         if (entry.card.raw) {
           entry.card.strength = strengthFromLinks(entry.card.raw.links);
           entry.card.defence = defenceFromBytes(entry.card.raw.bytes);
         }
+        // back-fill a signature for mythics pulled before the system existed
+        if (entry.card.rarity === 'mythic' && !entry.card.signature) {
+          entry.card.signature = rollSignature(entry.card);
+          dirty = true;
+        }
         clean[Number(id)] = entry;
       }
     }
+    if (dirty) safeSet(COLLECTION_KEY, JSON.stringify(clean));
     return clean;
   } catch {
     return {};

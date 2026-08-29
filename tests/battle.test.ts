@@ -5,6 +5,8 @@ import { classifyCard } from '../src/lib/battle/classify';
 import { assembleTeam, simulate, type TeamStats } from '../src/lib/battle/engine';
 import { GOLDFISH } from '../src/lib/battle/opponents';
 import { battleTeam } from '../src/lib/battle/team';
+import { applyMythicSignatures, rollSignature } from '../src/lib/signature';
+import { seededRng } from '../src/lib/pack';
 import {
   effectFor,
   effectIdFor,
@@ -34,6 +36,7 @@ function card(over: Partial<Card> = {}): Card {
     defence: 100,
     foil: 0,
     negated: false,
+    signature: null,
     tags: [],
     raw: { links: 0, bytes: 0, monthlyViews: 0 },
     ...over
@@ -48,6 +51,17 @@ const stats = (over: Partial<TeamStats>): TeamStats => ({
   reflect: 0,
   mods: { hpFlat: 0, hpPct: 0, atkFlat: 0, atkPct: 0, regen: 0, reflect: 0 },
   roundPlan: { effects: [], dotStart: 0, dotRamp: 0, atkRampPct: 0, blooms: [], overdrives: [] },
+  signatures: [],
+  hooks: {
+    enemyAtkMult: 1,
+    negateEnemyHits: 0,
+    blitzRounds: 0,
+    comboEvery: 0,
+    comboBonus: 0,
+    apexAtkPct: 0,
+    longGamePer4: 0,
+    bloomHealFrac: 0
+  },
   livingCount: 0,
   abstractCount: 0,
   ...over
@@ -339,5 +353,58 @@ describe('battleTeam store', () => {
     battleTeam.toggle(8); // now there is room
     expect(get(battleTeam)).toEqual([1, 2, 4, 5, 6, 7, 8]);
     battleTeam.clear();
+  });
+});
+
+describe('mythic signatures', () => {
+  it('only rolls a signature onto an un-signed mythic', () => {
+    const out = applyMythicSignatures(
+      [
+        card({ id: 1, rarity: 'mythic', tags: ['cinema'] }),
+        card({ id: 2, rarity: 'rare', tags: ['cinema'] }),
+        card({ id: 3, rarity: 'mythic', signature: 'war', tags: ['cinema'] })
+      ],
+      seededRng(1)
+    );
+    expect(out[0].signature).not.toBeNull(); // rolled
+    expect(out[1].signature).toBeNull(); // not a mythic
+    expect(out[2].signature).toBe('war'); // already had one, kept
+  });
+
+  it('the roll leans toward the card\'s own themes', () => {
+    const c = card({ rarity: 'mythic', tags: ['disease'] });
+    let own = 0;
+    for (let s = 0; s < 400; s++) if (rollSignature(c, seededRng(s)) === 'disease') own++;
+    // ~50% lean + ~1/17 of the random half ≈ 53%
+    expect(own / 400).toBeGreaterThan(0.4);
+    expect(own / 400).toBeLessThan(0.7);
+  });
+
+  it('Franchise scales team attack with the cinema count', () => {
+    const base = assembleTeam([
+      card({ id: 1, strength: 500, extract: 'He is a film director.', tags: ['cinema'] }),
+      card({ id: 2, strength: 300, extract: 'She is an actress.', tags: ['cinema'] })
+    ]);
+    const withSig = assembleTeam([
+      card({ id: 1, strength: 500, rarity: 'mythic', signature: 'cinema', extract: 'He is a film director.', tags: ['cinema'] }),
+      card({ id: 2, strength: 300, extract: 'She is an actress.', tags: ['cinema'] })
+    ]);
+    // N = 2 cinema cards → +10% attack
+    expect(withSig.signatures[0]?.name).toBe('Franchise');
+    expect(withSig.attack).toBe(Math.round(base.attack * 1.1));
+  });
+
+  it('Divine Shield negates the first enemy hit', () => {
+    const t = stats({ maxHp: 100, attack: 5000, hooks: { ...stats({}).hooks, negateEnemyHits: 1 } });
+    const r = simulate(t, { id: 'x', name: 'Ogre', blurb: '', maxHp: 20000, attack: 60 });
+    // r1: team hits 5000, ogre answers but the shield eats it → 0 taken that round
+    expect(r.rounds[0].lines.some((l) => l.text.includes('Divine Shield'))).toBe(true);
+    expect(r.rounds[0].playerHp).toBe(100);
+  });
+
+  it('Blitzkrieg adds a second team strike on the opening rounds', () => {
+    const t = stats({ maxHp: 9000, attack: 100, hooks: { ...stats({}).hooks, blitzRounds: 2 } });
+    const r = simulate(t, { id: 'x', name: 'Dummy', blurb: '', maxHp: 900, attack: 0 });
+    expect(r.rounds[0].lines.filter((l) => l.text.includes('for 100')).length).toBe(2);
   });
 });
