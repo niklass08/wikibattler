@@ -1,18 +1,7 @@
 import type { Rarity } from './types';
+import { RARITY_THRESHOLDS } from './odds';
 
-/**
- * Tunable constants. Monthly-view thresholds; nudge until the rarity mix of live
- * packs feels right (rough target 55 / 30 / 12 / 3 %). Rare/mythic candidates come
- * from the pageviews "top" lists, so raising `mythic` makes mythics genuinely scarce.
- */
-export const RARITY_THRESHOLDS = {
-  /** monthly views: >= this and < rare  => uncommon */
-  uncommon: 10_000,
-  /** monthly views: >= this and < mythic => rare */
-  rare: 150_000,
-  /** monthly views: >= this             => mythic */
-  mythic: 400_000
-} as const;
+export { RARITY_THRESHOLDS };
 
 export function rarityFromViews(
   monthlyViews: number,

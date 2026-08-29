@@ -1,4 +1,7 @@
 import type { Card, Rarity } from './types';
+import { PACK_BASE, PACK_SIZE, UPGRADE_MIN, UPGRADE_STEP } from './odds';
+
+export { PACK_BASE, PACK_SIZE };
 
 export interface RarityPools {
   common: Card[];
@@ -7,35 +10,9 @@ export interface RarityPools {
   mythic: Card[];
 }
 
-export const PACK_SIZE = 7;
-
 export type Rng = () => number;
 
-/**
- * Base rarity of each slot, in reveal order, before upgrade rolls. Slot 7 is a
- * guaranteed rare-or-better; the rest form the modal 4-common / 2-uncommon pack.
- * Nothing here is a hard floor except the guaranteed rare — every slot then
- * rolls to climb the ladder.
- */
-export const PACK_BASE: Rarity[] = [
-  'common',
-  'common',
-  'common',
-  'common',
-  'uncommon',
-  'uncommon',
-  'rare'
-];
-
-/**
- * Per-roll upgrade chance for a slot, by its 0-based depth: shallow slots
- * almost never upgrade, the deepest slots often do. A card keeps rolling one
- * tier up (at this fixed chance) until a roll fails or it reaches mythic — so
- * a lucky shallow common could still chain all the way up, just rarely.
- */
-export const UPGRADE_MIN = 0.03;
-export const UPGRADE_STEP = 0.017;
-
+/** Per-roll chance a slot at this 0-based depth climbs one rarity tier. See odds.ts. */
 export function upgradeChance(depth: number): number {
   return UPGRADE_MIN + UPGRADE_STEP * depth;
 }

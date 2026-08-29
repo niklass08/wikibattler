@@ -9,22 +9,18 @@
  * Rolled independently per card at a tenth of the foil chance, so a card can
  * come out foil, negated, both, or neither.
  *
- * `rng` is injectable so tests are deterministic.
+ * All the rates live in odds.ts; `rng` is injectable so tests are deterministic.
  */
 import type { Card, FoilTier } from './types';
 import type { Rng } from './pack';
+import {
+  FOIL_PACK_CHANCE,
+  FOIL_TIER_WEIGHTS,
+  GOD_PACK_CHANCE,
+  NEGATE_CHANCE
+} from './odds';
 
-/** Chance that a given pack contains a foil card at all. */
-export const FOIL_PACK_CHANCE = 1 / 7;
-
-/** Chance that a given pack is a god pack — every card foiled. */
-export const GOD_PACK_CHANCE = 1 / 25;
-
-/** Per-card chance of the negated finish — a tenth of the foil pack chance. */
-export const NEGATE_CHANCE = FOIL_PACK_CHANCE / 10;
-
-/** Relative weights for tiers 1 / 2 / 3 whenever a foil is rolled. */
-export const FOIL_TIER_WEIGHTS: [number, number, number] = [0.62, 0.28, 0.1];
+export { FOIL_PACK_CHANCE, FOIL_TIER_WEIGHTS, GOD_PACK_CHANCE, NEGATE_CHANCE };
 
 function pickTier(r: number): Exclude<FoilTier, 0> {
   const [w1, w2] = FOIL_TIER_WEIGHTS;
