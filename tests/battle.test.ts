@@ -183,12 +183,14 @@ describe('environmental effects config', () => {
 describe('cardBattleStat (the card-face line)', () => {
   it('a fighter shows its attack contribution', () => {
     const s = cardBattleStat(card({ strength: 480, extract: 'She is a professional footballer.' }));
+    expect(s.fighter).toBe(true);
     expect(s.value).toBe('480');
     expect(s.label).toBe('Fighter');
   });
 
   it('a field card shows its lead effect and magnitude', () => {
     const s = cardBattleStat(card({ tags: ['war'], strength: 600, extract: 'World War I was a global conflict.' }));
+    expect(s.fighter).toBe(false);
     expect(s.label).toBe('Arsenal'); // war -> arsenal, atkFlat = round(600 * 0.3)
     expect(s.value).toBe('+180');
     expect(s.icon).toBe('🗡️');

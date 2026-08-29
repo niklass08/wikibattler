@@ -14,6 +14,8 @@ import { effectFor } from './effects';
 import type { FieldStat } from './effects.config';
 
 export interface CardBattleStat {
+  /** true = a living card that swings; false = a field card with a passive */
+  fighter: boolean;
   icon: string;
   /** short value string: "480", "+12%", "+180", "+15/r" */
   value: string;
@@ -26,6 +28,7 @@ export interface CardBattleStat {
 export function cardBattleStat(card: Card): CardBattleStat {
   if (classifyCard(card) === 'living') {
     return {
+      fighter: true,
       icon: ROLE_META.living.icon,
       value: String(card.strength),
       label: ROLE_META.living.label,
@@ -34,6 +37,7 @@ export function cardBattleStat(card: Card): CardBattleStat {
   }
   const e = effectFor(card);
   return {
+    fighter: false,
     icon: e.icon,
     value: e.headline,
     label: e.name,

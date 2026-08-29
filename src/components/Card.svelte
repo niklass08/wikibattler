@@ -113,8 +113,12 @@
           <h3 class="title">{card.title}</h3>
           <div class="rule"></div>
           <div class="stats mono">
-            <span class="stat"><b>STR</b>{card.strength}</span>
-            <span class="stat"><b>DEF</b>{card.defence}</span>
+            {#if !battle || battle.fighter}
+              <span class="stat"><b>STR</b>{card.strength}</span>
+            {/if}
+            {#if !battle || !battle.fighter}
+              <span class="stat"><b>DEF</b>{card.defence}</span>
+            {/if}
             {#if battle}
               <span class="stat bt" title={battle.hint}>
                 <span class="ic" aria-hidden="true">{battle.icon}</span>{battle.value}

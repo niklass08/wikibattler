@@ -22,22 +22,28 @@ const sample: CardT = {
 };
 
 describe('component render (SSR)', () => {
-  it('renders a Card without throwing and shows its stats', () => {
+  it('renders a Card without throwing', () => {
     const { body } = render(Card, { props: { card: sample } });
     expect(body).toContain('Antikythera mechanism');
-    expect(body).toContain('58');
-    expect(body).toContain('77');
     expect(body).toContain('rarity-mythic');
   });
 
-  it('shows the battle line on the card face', () => {
+  it('a field card shows DEF (not STR) plus its effect line', () => {
     // "an ancient Greek analogue computer" -> abstract -> Landmark: +round(77*0.2)
     const { body } = render(Card, { props: { card: sample } });
+    expect(body).toContain('>DEF<');
+    expect(body).toContain('77');
+    expect(body).not.toContain('>STR<');
     expect(body).toContain('stat bt');
     expect(body).toContain('+15');
-    // a fighter shows its attack contribution instead
+  });
+
+  it('a fighter shows STR (not DEF) plus its attack', () => {
     const fighter = { ...sample, extract: 'He was a Greek astronomer and mathematician.', strength: 42 };
-    expect(render(Card, { props: { card: fighter } }).body).toMatch(/stat bt[\s\S]*?42/);
+    const { body } = render(Card, { props: { card: fighter } });
+    expect(body).toContain('>STR<');
+    expect(body).not.toContain('>DEF<');
+    expect(body).toMatch(/stat bt[\s\S]*?42/);
   });
 
   it('renders a face-down Card', () => {
