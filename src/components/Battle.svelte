@@ -371,24 +371,27 @@
   }
   .slots {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    /* minmax(0,…) forces 7 equal columns regardless of their content, so an
+       empty slot is exactly the width (and thus height) of a card slot */
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: clamp(6px, 1vw, 12px);
     align-items: start;
   }
   @media (max-width: 620px) {
     .slots {
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
   }
   .slot {
     position: relative;
+    aspect-ratio: 2.5 / 3.5;
   }
   /* the real Card renders here — foil layers, negated inversion and all */
   .slot :global(.card) {
     width: 100%;
+    height: 100%;
   }
   .slot.empty {
-    aspect-ratio: 2.5 / 3.5;
     display: grid;
     place-items: center;
     border: 1px dashed var(--line);
