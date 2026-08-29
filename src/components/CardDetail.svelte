@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fade, scale } from 'svelte/transition';
   import { FOIL_LABEL, NEGATED_LABEL, type Card as CardT } from '../lib/types';
+  import { STAT_MAX } from '../lib/rarity';
   import { TAG_LABEL, type Tag } from '../lib/tags';
   import Card from './Card.svelte';
   import RarityBadge from './RarityBadge.svelte';
@@ -49,8 +50,8 @@
       <p class="extract">{card.extract || 'No summary available.'}</p>
 
       <dl class="grid mono">
-        <div><dt>Strength</dt><dd>{card.strength}</dd><dd class="raw">{card.raw.links.toLocaleString()} links</dd></div>
-        <div><dt>Defence</dt><dd>{card.defence}</dd><dd class="raw">{card.raw.bytes.toLocaleString()} bytes</dd></div>
+        <div><dt>Strength</dt><dd>{card.strength}<span class="max">/{STAT_MAX}</span></dd><dd class="raw">{card.raw.links.toLocaleString()} links</dd></div>
+        <div><dt>Defence</dt><dd>{card.defence}<span class="max">/{STAT_MAX}</span></dd><dd class="raw">{card.raw.bytes.toLocaleString()} bytes</dd></div>
         <div><dt>Popularity</dt><dd>{card.raw.monthlyViews.toLocaleString()}</dd><dd class="raw">views / month</dd></div>
         <div><dt>Owned</dt><dd>{count}</dd><dd class="raw">cop{count === 1 ? 'y' : 'ies'}</dd></div>
       </dl>
@@ -182,6 +183,11 @@
   .grid dd {
     font-size: 18px;
     color: var(--text);
+  }
+  .grid dd .max {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-left: 1px;
   }
   .grid dd.raw {
     font-size: 11px;

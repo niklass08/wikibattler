@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import type { Card, Collection, OwnedEntry, Rarity } from './types';
 import { RARITIES } from './types';
+import { defenceFromBytes, strengthFromLinks } from './rarity';
 
 // v2: entries carry the full card — there is no static pool to look it up in.
 const COLLECTION_KEY = 'wikitcg:collection:v2';
@@ -36,6 +37,12 @@ function loadCollection(): Collection {
         entry.card.foil ??= 0; // cards saved before the foil system
         entry.card.negated ??= false; // cards saved before the negated system
         entry.card.tags ??= []; // cards saved before the tag system
+        // Stats derive purely from raw links/bytes, so re-derive on load — this
+        // silently migrates cards saved under an older stat scale.
+        if (entry.card.raw) {
+          entry.card.strength = strengthFromLinks(entry.card.raw.links);
+          entry.card.defence = defenceFromBytes(entry.card.raw.bytes);
+        }
         clean[Number(id)] = entry;
       }
     }

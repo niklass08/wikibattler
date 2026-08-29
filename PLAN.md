@@ -240,8 +240,7 @@ of how the old crawl worked.
    months); for random-seed commons the 60-day `pageviews` sum ÷ 2 is fine.
 6. **Assign rarity** by monthly-views thresholds (§5). If a bucket is thin (esp.
    `mythic`), that's fine — rarity should be rare.
-7. **Normalise stats** to 1–99 using **percentile rank within the final pool**
-   (spreads the heavy-tailed raw values). Store both raw and normalised.
+7. **Derive stats** on the 1–1000 log scale (§Stats). Store both raw and derived.
 8. **Write** `src/data/pools.json`:
 
 ```jsonc
@@ -257,8 +256,8 @@ of how the old crawl worked.
       "extract": "The cat is a small domesticated carnivore…",
       "image": "https://upload.wikimedia.org/…/330px-Cat_poster.jpg",   // or null
       "rarity": "uncommon",
-      "strength": 61,                   // normalised 1–99
-      "defence": 74,
+      "strength": 470,                  // 1–1000 log scale
+      "defence": 760,
       "raw": { "links": 1123, "bytes": 171674, "monthlyViews": 148230 }
     }
     // …
@@ -295,16 +294,14 @@ adjust so the distribution feels right (rough target: 55 / 30 / 12 / 3 %).
 
 ### Stats
 
-Primary: **percentile rank within the pool**, computed at build time, mapped to 1–99.
-
-Fallback (for live/wild draws with no pool context) — log scale, heavy-tailed inputs:
+Log scale on the heavy-tailed inputs, mapped to **1–1000** between per-stat
+anchors with a curve that spreads the mid-range (see `rarity.ts`):
 
 ```ts
-strength = clamp(round(12 * log10(links + 1)), 1, 99)
-defence  = clamp(round(11 * (log10(bytes) - 2.5)), 1, 99)
+// t = normalised log position between the min/max anchor, clamped 0..1
+strength = round(1000 * clamp(t(links, 3, 6000), 0, 1) ** 1.6)   // 1..1000
+defence  = round(1000 * clamp(t(bytes, 800, 500_000), 0, 1) ** 1.6)
 ```
-
-Keep both; the pool path is canonical.
 
 ---
 

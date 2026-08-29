@@ -420,7 +420,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 16px;
+    gap: clamp(10px, 5cqw, 18px);
     font-size: clamp(12px, 4.6cqw, 14px);
   }
   .stat {

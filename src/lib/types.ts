@@ -57,9 +57,9 @@ export interface Card {
   /** Lead-image thumbnail URL, or null for a typographic card. */
   image: string | null;
   rarity: Rarity;
-  /** Normalised 1–99. */
+  /** Log-scaled 1–1000. See rarity.ts. */
   strength: number;
-  /** Normalised 1–99. */
+  /** Log-scaled 1–1000. See rarity.ts. */
   defence: number;
   /** Holographic finish (rarity-independent). 0 for the vast majority of cards. */
   foil: FoilTier;
