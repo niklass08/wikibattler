@@ -17,6 +17,11 @@
         Collection
         {#if owned > 0}<span class="count mono">{owned}</span>{/if}
       </button>
+      {#if owned > 0}
+        <button class:active={$view === 'battle'} onclick={() => view.set('battle')}>
+          Battle <span class="tag mono">beta</span>
+        </button>
+      {/if}
     </nav>
   </div>
 </header>
@@ -69,5 +74,15 @@
   .count {
     font-size: 12px;
     color: var(--text-faint);
+  }
+  .tag {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--mythic);
+    padding: 1px 4px;
+    border-radius: 4px;
   }
 </style>
