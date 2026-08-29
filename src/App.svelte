@@ -4,6 +4,7 @@
   import PackOpener from './components/PackOpener.svelte';
   import Collection from './components/Collection.svelte';
   import Battle from './components/Battle.svelte';
+  import Help from './components/Help.svelte';
 </script>
 
 <NavBar />
@@ -13,6 +14,8 @@
     <PackOpener />
   {:else if $view === 'battle'}
     <Battle />
+  {:else if $view === 'help'}
+    <Help />
   {:else}
     <Collection />
   {/if}
