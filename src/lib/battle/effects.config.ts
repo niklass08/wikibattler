@@ -49,6 +49,8 @@ export interface Contribution {
 export interface EffectDef {
   /** shown on the team sheet and in the combat log */
   name: string;
+  /** single pictogram shown on the card and in the arena so the effect reads at a glance */
+  icon: string;
   /** one or more stat contributions, all applied */
   contributions: Contribution[];
 }
@@ -57,14 +59,17 @@ export interface EffectDef {
 export const EFFECTS = {
   terrain: {
     name: 'Home Terrain',
+    icon: '⛰️',
     contributions: [{ stat: 'hpPct', base: 0.05, perDefence: 1 / 4000 }]
   },
   spectacle: {
     name: 'Spectacle',
+    icon: '🎬',
     contributions: [{ stat: 'atkPct', base: 0.04, perStrength: 1 / 4000 }]
   },
   anthem: {
     name: 'Anthem',
+    icon: '🎵',
     contributions: [
       { stat: 'atkPct', base: 0.03, perStrength: 1 / 5000 },
       { stat: 'regen', perDefence: 0.03, min: 1 }
@@ -72,26 +77,32 @@ export const EFFECTS = {
   },
   muse: {
     name: 'Muse',
+    icon: '🎨',
     contributions: [{ stat: 'atkPct', base: 0.05, perStrength: 1 / 4000 }]
   },
   metagame: {
     name: 'Metagame',
+    icon: '🎮',
     contributions: [{ stat: 'atkPct', base: 0.04, perStrength: 1 / 4500 }]
   },
   arsenal: {
     name: 'Arsenal',
+    icon: '🗡️',
     contributions: [{ stat: 'atkFlat', perStrength: 0.3 }]
   },
   countermeasures: {
     name: 'Countermeasures',
+    icon: '🛡️',
     contributions: [{ stat: 'reflect', base: 0.1, perStrength: 1 / 6000, max: 0.4 }]
   },
   sponsorship: {
     name: 'Sponsorship',
+    icon: '💰',
     contributions: [{ stat: 'regen', perDefence: 0.03, min: 1 }]
   },
   doctrine: {
     name: 'Doctrine',
+    icon: '📜',
     contributions: [
       { stat: 'atkPct', base: 0.03 },
       { stat: 'hpPct', base: 0.03 }
@@ -99,10 +110,12 @@ export const EFFECTS = {
   },
   legacy: {
     name: 'Legacy',
+    icon: '🏛️',
     contributions: [{ stat: 'hpFlat', perDefence: 0.2 }]
   },
   faith: {
     name: 'Faith',
+    icon: '✨',
     contributions: [
       { stat: 'regen', perDefence: 0.03, min: 1 },
       { stat: 'hpPct', base: 0.02 }
@@ -110,10 +123,12 @@ export const EFFECTS = {
   },
   training: {
     name: 'Training',
+    icon: '🏋️',
     contributions: [{ stat: 'atkPct', base: 0.03, perStrength: 1 / 5000 }]
   },
   landmark: {
     name: 'Landmark',
+    icon: '📍',
     contributions: [{ stat: 'hpFlat', perDefence: 0.2 }]
   }
 } as const satisfies Record<string, EffectDef>;

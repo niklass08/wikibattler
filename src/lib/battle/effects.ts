@@ -44,6 +44,8 @@ const pct = (n: number) => `${Math.round(n * 100)}%`;
 export interface ResolvedEffect {
   id: EffectId;
   name: string;
+  /** single pictogram, from the config */
+  icon: string;
   /** human-readable summary, e.g. "+7% team attack · heal 12/round" */
   detail: string;
   mods: FieldMods;
@@ -87,7 +89,7 @@ export function resolveEffect(id: EffectId, card: Card): ResolvedEffect {
     mods[c.stat] += v;
     parts.push(phrase(c.stat, v));
   }
-  return { id, name: def.name, detail: parts.join(' · '), mods };
+  return { id, name: def.name, icon: def.icon, detail: parts.join(' · '), mods };
 }
 
 /** The effect id an abstract card's tags select. */

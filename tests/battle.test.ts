@@ -131,6 +131,14 @@ describe('environmental effects config', () => {
     }
   });
 
+  it('every effect carries a name, an icon and at least one contribution', () => {
+    for (const [id, def] of Object.entries(EFFECTS)) {
+      expect(def.name, id).toBeTruthy();
+      expect(def.icon, id).toBeTruthy();
+      expect(def.contributions.length, id).toBeGreaterThan(0);
+    }
+  });
+
   it("picks the effect from the card's strongest mapped tag", () => {
     expect(effectIdFor(card({ tags: ['war', 'history'] }))).toBe('arsenal');
     expect(effectIdFor(card({ tags: ['geography'] }))).toBe('terrain');
@@ -142,6 +150,7 @@ describe('environmental effects config', () => {
     const e = resolveEffect('spectacle', card({ strength: 400 }));
     expect(e.mods.atkPct).toBeCloseTo(0.04 + 400 / 4000);
     expect(e.name).toBe('Spectacle');
+    expect(e.icon).toBe('🎬');
     expect(e.detail).toBe('+14% team attack');
   });
 

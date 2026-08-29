@@ -18,6 +18,12 @@ import type { Tag } from '../tags';
 
 export type Role = 'living' | 'abstract';
 
+/** Pictogram + label per role, for the card strip and the arena. */
+export const ROLE_META: Record<Role, { icon: string; label: string }> = {
+  living: { icon: '⚔️', label: 'Fighter' },
+  abstract: { icon: '✦', label: 'Field' }
+};
+
 /** A person: birth/death parenthetical, or "is/was a <occupation>". */
 const PERSON =
   /\(born\s|\(\d{3,4}\s*[–-]\s*\d{3,4}\)|\b(?:is|was)\s+(?:a|an|the)\s+[^.]{0,48}\b(player|footballer|actor|actress|singer|songwriter|rapper|musician|guitarist|drummer|pianist|composer|conductor|politician|statesman|president|senator|governor|mayor|minister|king|queen|emperor|empress|monarch|prince|princess|pope|bishop|saint|writer|author|poet|novelist|playwright|journalist|philosopher|historian|scientist|physicist|chemist|biologist|mathematician|astronomer|economist|engineer|inventor|architect|painter|sculptor|artist|photographer|filmmaker|director|producer|screenwriter|dancer|choreographer|model|chef|athlete|sprinter|runner|cyclist|swimmer|boxer|wrestler|gymnast|skater|golfer|driver|pilot|astronaut|soldier|general|admiral|officer|commander|activist|revolutionary|entrepreneur|businessman|businesswoman|magnate|explorer|nurse|physician|doctor|lawyer|judge)s?\b/i;

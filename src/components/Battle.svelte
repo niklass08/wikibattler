@@ -11,7 +11,8 @@
     type BattleResult
   } from '../lib/battle/engine';
   import { GOLDFISH } from '../lib/battle/opponents';
-  import { classifyCard, type Role } from '../lib/battle/classify';
+  import { classifyCard, ROLE_META, type Role } from '../lib/battle/classify';
+  import { effectFor } from '../lib/battle/effects';
   import { view } from '../stores/view';
   import Card from './Card.svelte';
   import { RARITIES, type Card as CardT, type Rarity } from '../lib/types';
@@ -22,6 +23,23 @@
   const owned = $derived(Object.values($collection).map((e) => e.card));
   const byId = $derived(new Map(owned.map((c) => [c.id, c] as const)));
   const roleOf = $derived(new Map(owned.map((c) => [c.id, classifyCard(c)] as const)));
+
+  /** id → the pictogram strip for a card: what it does in a fight, at a glance */
+  const doesWhat = $derived(
+    new Map(
+      owned.map((c) => {
+        const role = classifyCard(c);
+        if (role === 'living') {
+          return [
+            c.id,
+            { icon: ROLE_META.living.icon, label: `${c.strength} atk`, title: `Fighter — adds ${c.strength} to the team's attack` }
+          ] as const;
+        }
+        const e = effectFor(c);
+        return [c.id, { icon: e.icon, label: e.name, title: e.detail }] as const;
+      })
+    )
+  );
 
   // --- roster filtering / sorting -----------------------------------------
   type RSort = 'power' | 'strength' | 'defence' | 'rarity' | 'recent' | 'name';
@@ -173,8 +191,8 @@
               {:else}
                 <span class="ini">{initials(m.card.title)}</span>
               {/if}
-              <span class="role" title={m.role === 'living' ? 'Fighter' : 'Field'}>
-                {m.role === 'living' ? '⚔' : '✦'}
+              <span class="role" title={m.effect ? m.effect.name : ROLE_META.living.label}>
+                {m.effect ? m.effect.icon : ROLE_META.living.icon}
               </span>
               <span class="cap">{m.card.title}</span>
             {:else}
@@ -198,6 +216,7 @@
           {#each team.members as m (m.card.id)}
             {#if m.effect}
               <li>
+                <span class="eicon">{m.effect.icon}</span>
                 <span class="ename">{m.effect.name}</span>
                 <span class="edetail">{m.effect.detail}</span>
                 <span class="efrom">— {m.card.title}</span>
@@ -259,15 +278,14 @@
         {#each roster as card (card.id)}
           {@const picked = $battleTeam.includes(card.id)}
           {@const blocked = blockedReason(card)}
+          {@const d = doesWhat.get(card.id)}
           <div class="pick" class:picked class:blocked={!!blocked} title={blocked ?? ''}>
             <Card {card} onclick={() => pick(card)} dupCount={$collection[card.id]?.count ?? 1} />
-            {#if picked}
-              <span class="flag">in team</span>
-            {:else}
-              <span class="flag role-tag">
-                {roleOf.get(card.id) === 'living' ? '⚔ fighter' : '✦ field'}
-              </span>
-            {/if}
+            {#if picked}<span class="flag">in team</span>{/if}
+            <div class="picto" title={d?.title}>
+              <span class="pic">{d?.icon}</span>
+              <span class="lbl">{d?.label}</span>
+            </div>
           </div>
         {/each}
       </div>
@@ -288,7 +306,12 @@
         <div class="side you">
           <div class="crest">
             {#each team.members.slice(0, 7) as m (m.card.id)}
-              <span class="chip rarity-{m.card.rarity}">{m.role === 'living' ? '⚔' : '✦'}</span>
+              <span
+                class="chip rarity-{m.card.rarity}"
+                title={m.effect ? `${m.card.title} — ${m.effect.name}` : `${m.card.title} — ${ROLE_META.living.label}`}
+              >
+                {m.effect ? m.effect.icon : ROLE_META.living.icon}
+              </span>
             {/each}
           </div>
           <h2>Your team</h2>
@@ -493,6 +516,9 @@
     gap: 8px;
     align-items: baseline;
   }
+  .eicon {
+    font-size: 14px;
+  }
   .ename {
     font-weight: 600;
     color: var(--uncommon);
@@ -572,19 +598,10 @@
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: clamp(14px, 2vw, 24px);
   }
-  .pick .role-tag {
-    color: var(--text);
-    background: color-mix(in srgb, var(--bg) 70%, transparent);
-    border: 1px solid var(--line);
-    backdrop-filter: blur(4px);
-    opacity: 0;
-    transition: opacity var(--dur) var(--ease);
-  }
-  .pick:hover .role-tag {
-    opacity: 1;
-  }
   .pick {
     position: relative;
+    display: flex;
+    flex-direction: column;
     border-radius: var(--card-radius);
     transition: transform var(--dur) var(--ease);
   }
@@ -598,6 +615,29 @@
   }
   .pick.blocked :global(.flipper) {
     pointer-events: none;
+  }
+  /* pictogram strip — what the card does in a fight, at a glance */
+  .picto {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 7px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .picto .pic {
+    font-size: 13px;
+    line-height: 1;
+  }
+  .picto .lbl {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pick.picked .picto {
+    color: var(--text);
   }
   .flag {
     position: absolute;
