@@ -172,7 +172,7 @@
               <span class="drop">remove</span>
             </div>
           {:else}
-            <div class="slot empty"><span class="plus">+</span></div>
+            <div class="slot empty"><div class="ph"><span class="plus">+</span></div></div>
           {/if}
         {/each}
       </div>
@@ -384,14 +384,17 @@
   }
   .slot {
     position: relative;
-    aspect-ratio: 2.5 / 3.5;
   }
-  /* the real Card renders here — foil layers, negated inversion and all */
+  /* the real Card renders here — foil layers, negated inversion and all. Its
+     own .flipper (aspect-ratio 2.5/3.5) sets the height. */
   .slot :global(.card) {
     width: 100%;
-    height: 100%;
   }
-  .slot.empty {
+  /* the placeholder mirrors that aspect-ratio on an inner box, so an empty slot
+     is exactly a card tall — never stretched to the grid row */
+  .slot .ph {
+    width: 100%;
+    aspect-ratio: 2.5 / 3.5;
     display: grid;
     place-items: center;
     border: 1px dashed var(--line);
