@@ -12,7 +12,6 @@
   } from '../lib/battle/engine';
   import { GOLDFISH } from '../lib/battle/opponents';
   import { classifyCard, ROLE_META, type Role } from '../lib/battle/classify';
-  import { effectFor } from '../lib/battle/effects';
   import { view } from '../stores/view';
   import Card from './Card.svelte';
   import { RARITIES, type Card as CardT, type Rarity } from '../lib/types';
@@ -23,23 +22,6 @@
   const owned = $derived(Object.values($collection).map((e) => e.card));
   const byId = $derived(new Map(owned.map((c) => [c.id, c] as const)));
   const roleOf = $derived(new Map(owned.map((c) => [c.id, classifyCard(c)] as const)));
-
-  /** id → the pictogram strip for a card: what it does in a fight, at a glance */
-  const doesWhat = $derived(
-    new Map(
-      owned.map((c) => {
-        const role = classifyCard(c);
-        if (role === 'living') {
-          return [
-            c.id,
-            { icon: ROLE_META.living.icon, label: `${c.strength} atk`, title: `Fighter — adds ${c.strength} to the team's attack` }
-          ] as const;
-        }
-        const e = effectFor(c);
-        return [c.id, { icon: e.icon, label: e.name, title: e.detail }] as const;
-      })
-    )
-  );
 
   // --- roster filtering / sorting -----------------------------------------
   type RSort = 'power' | 'strength' | 'defence' | 'rarity' | 'recent' | 'name';
@@ -278,14 +260,9 @@
         {#each roster as card (card.id)}
           {@const picked = $battleTeam.includes(card.id)}
           {@const blocked = blockedReason(card)}
-          {@const d = doesWhat.get(card.id)}
           <div class="pick" class:picked class:blocked={!!blocked} title={blocked ?? ''}>
             <Card {card} onclick={() => pick(card)} dupCount={$collection[card.id]?.count ?? 1} />
             {#if picked}<span class="flag">in team</span>{/if}
-            <div class="picto" title={d?.title}>
-              <span class="pic">{d?.icon}</span>
-              <span class="lbl">{d?.label}</span>
-            </div>
           </div>
         {/each}
       </div>
@@ -600,8 +577,6 @@
   }
   .pick {
     position: relative;
-    display: flex;
-    flex-direction: column;
     border-radius: var(--card-radius);
     transition: transform var(--dur) var(--ease);
   }
@@ -615,29 +590,6 @@
   }
   .pick.blocked :global(.flipper) {
     pointer-events: none;
-  }
-  /* pictogram strip — what the card does in a fight, at a glance */
-  .picto {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    margin-top: 7px;
-    font-size: 11px;
-    color: var(--text-dim);
-  }
-  .picto .pic {
-    font-size: 13px;
-    line-height: 1;
-  }
-  .picto .lbl {
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .pick.picked .picto {
-    color: var(--text);
   }
   .flag {
     position: absolute;

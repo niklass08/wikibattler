@@ -29,6 +29,16 @@ describe('component render (SSR)', () => {
     expect(body).toContain('rarity-mythic');
   });
 
+  it('shows the battle line on the card face', () => {
+    // "an ancient Greek analogue computer" -> abstract -> Landmark: +round(77*0.2)
+    const { body } = render(Card, { props: { card: sample } });
+    expect(body).toContain('stat bt');
+    expect(body).toContain('+15');
+    // a fighter shows its attack contribution instead
+    const fighter = { ...sample, extract: 'He was a Greek astronomer and mathematician.', strength: 42 };
+    expect(render(Card, { props: { card: fighter } }).body).toMatch(/stat bt[\s\S]*?42/);
+  });
+
   it('renders a face-down Card', () => {
     const { body } = render(Card, { props: { card: sample, faceDown: true } });
     expect(body).toContain('Unrevealed card');

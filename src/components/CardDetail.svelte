@@ -3,6 +3,7 @@
   import { FOIL_LABEL, NEGATED_LABEL, type Card as CardT } from '../lib/types';
   import { STAT_MAX } from '../lib/rarity';
   import { TAG_LABEL, type Tag } from '../lib/tags';
+  import { cardBattleStat } from '../lib/battle/cardStat';
   import Card from './Card.svelte';
   import RarityBadge from './RarityBadge.svelte';
   import { collection, favourites } from '../lib/collection';
@@ -11,6 +12,7 @@
 
   const count = $derived($collection[card.id]?.count ?? 0);
   const isFav = $derived($favourites.has(card.id));
+  const battle = $derived(cardBattleStat(card));
 
   function onkey(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose();
@@ -54,6 +56,7 @@
         <div><dt>Defence</dt><dd>{card.defence}<span class="max">/{STAT_MAX}</span></dd><dd class="raw">{card.raw.bytes.toLocaleString()} bytes</dd></div>
         <div><dt>Popularity</dt><dd>{card.raw.monthlyViews.toLocaleString()}</dd><dd class="raw">views / month</dd></div>
         <div><dt>Owned</dt><dd>{count}</dd><dd class="raw">cop{count === 1 ? 'y' : 'ies'}</dd></div>
+        <div title={battle.hint}><dt>Battle</dt><dd>{battle.icon} {battle.value}</dd><dd class="raw">{battle.label}</dd></div>
       </dl>
 
       <div class="foot">

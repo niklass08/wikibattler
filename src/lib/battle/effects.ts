@@ -46,6 +46,8 @@ export interface ResolvedEffect {
   name: string;
   /** single pictogram, from the config */
   icon: string;
+  /** compact magnitude of the lead contribution, e.g. "+14%", "+180", "+15/r" */
+  headline: string;
   /** human-readable summary, e.g. "+7% team attack · heal 12/round" */
   detail: string;
   mods: FieldMods;
@@ -79,17 +81,35 @@ function phrase(stat: FieldStat, v: number): string {
   }
 }
 
+/** Compact form of one contribution, for the card face. */
+function compact(stat: FieldStat, v: number): string {
+  switch (stat) {
+    case 'hpFlat':
+    case 'atkFlat':
+      return `+${v}`;
+    case 'hpPct':
+    case 'atkPct':
+      return `+${pct(v)}`;
+    case 'regen':
+      return `+${v}/r`;
+    case 'reflect':
+      return pct(v);
+  }
+}
+
 /** Build the concrete effect an id produces for this card. */
 export function resolveEffect(id: EffectId, card: Card): ResolvedEffect {
   const def = EFFECTS[id];
   const mods: FieldMods = { ...ZERO_MODS };
   const parts: string[] = [];
+  let headline = '';
   for (const c of def.contributions) {
     const v = valueOf(c, card);
     mods[c.stat] += v;
     parts.push(phrase(c.stat, v));
+    if (!headline) headline = compact(c.stat, v);
   }
-  return { id, name: def.name, icon: def.icon, detail: parts.join(' · '), mods };
+  return { id, name: def.name, icon: def.icon, headline, detail: parts.join(' · '), mods };
 }
 
 /** The effect id an abstract card's tags select. */

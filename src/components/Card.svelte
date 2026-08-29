@@ -2,6 +2,7 @@
   import type { Card, FoilTier } from '../lib/types';
   import { RARITY_GLYPH, RARITY_LABEL } from '../lib/types';
   import { backupImage } from '../lib/wiki';
+  import { cardBattleStat } from '../lib/battle/cardStat';
   import Foil from './Foil.svelte';
   import CardBack from './CardBack.svelte';
 
@@ -69,6 +70,11 @@
   const fallbackHue = $derived(
     Math.abs([...card.title].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0)) % 360
   );
+  // battle line — its Auto Battler role + magnitude. Hidden for a bare pack
+  // stub (no stats yet) and while face-down.
+  const battle = $derived(
+    card.strength === 0 && card.defence === 0 ? null : cardBattleStat(card)
+  );
 </script>
 
 <div class="card rarity-{card.rarity}">
@@ -109,6 +115,11 @@
           <div class="stats mono">
             <span class="stat"><b>STR</b>{card.strength}</span>
             <span class="stat"><b>DEF</b>{card.defence}</span>
+            {#if battle}
+              <span class="stat bt" title={battle.hint}>
+                <span class="ic" aria-hidden="true">{battle.icon}</span>{battle.value}
+              </span>
+            {/if}
           </div>
         </div>
 
@@ -420,8 +431,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: clamp(10px, 5cqw, 18px);
-    font-size: clamp(12px, 4.6cqw, 14px);
+    flex-wrap: wrap;
+    gap: 4px clamp(8px, 4cqw, 16px);
+    font-size: clamp(11px, 4.4cqw, 14px);
   }
   .stat {
     display: inline-flex;
@@ -434,6 +446,15 @@
     font-weight: 600;
     letter-spacing: 0.1em;
     color: var(--text-faint);
+  }
+  /* battle line — Auto Battler role + magnitude */
+  .stat.bt {
+    color: var(--text-dim);
+  }
+  .stat.bt .ic {
+    font-size: 1.15em;
+    line-height: 1;
+    align-self: center;
   }
 
   .back {

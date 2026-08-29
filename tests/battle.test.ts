@@ -7,6 +7,7 @@ import { GOLDFISH } from '../src/lib/battle/opponents';
 import { battleTeam } from '../src/lib/battle/team';
 import { effectFor, effectIdFor, resolveEffect, sumMods } from '../src/lib/battle/effects';
 import { EFFECTS, TAG_EFFECT } from '../src/lib/battle/effects.config';
+import { cardBattleStat } from '../src/lib/battle/cardStat';
 import { TAGS } from '../src/lib/tags';
 
 function card(over: Partial<Card> = {}): Card {
@@ -175,6 +176,22 @@ describe('environmental effects config', () => {
     expect(e.name).toBe('Anthem');
     expect(e.mods.regen).toBe(12);
     expect(e.detail).toContain('heal 12/round');
+    expect(e.headline).toBe('+3%'); // lead contribution: atkPct base 0.03, strength 0
+  });
+});
+
+describe('cardBattleStat (the card-face line)', () => {
+  it('a fighter shows its attack contribution', () => {
+    const s = cardBattleStat(card({ strength: 480, extract: 'She is a professional footballer.' }));
+    expect(s.value).toBe('480');
+    expect(s.label).toBe('Fighter');
+  });
+
+  it('a field card shows its lead effect and magnitude', () => {
+    const s = cardBattleStat(card({ tags: ['war'], strength: 600, extract: 'World War I was a global conflict.' }));
+    expect(s.label).toBe('Arsenal'); // war -> arsenal, atkFlat = round(600 * 0.3)
+    expect(s.value).toBe('+180');
+    expect(s.icon).toBe('🗡️');
   });
 });
 
