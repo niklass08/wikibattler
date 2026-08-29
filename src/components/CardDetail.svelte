@@ -3,7 +3,7 @@
   import { FOIL_LABEL, NEGATED_LABEL, type Card as CardT } from '../lib/types';
   import { STAT_MAX } from '../lib/rarity';
   import { TAG_LABEL, type Tag } from '../lib/tags';
-  import { cardBattleStat, battleBreakdown } from '../lib/battle/cardStat';
+  import { battleBreakdown } from '../lib/battle/cardStat';
   import Card from './Card.svelte';
   import RarityBadge from './RarityBadge.svelte';
   import { collection, favourites } from '../lib/collection';
@@ -12,7 +12,6 @@
 
   const count = $derived($collection[card.id]?.count ?? 0);
   const isFav = $derived($favourites.has(card.id));
-  const battle = $derived(cardBattleStat(card));
   const breakdown = $derived(battleBreakdown(card));
 
   function onkey(e: KeyboardEvent) {
@@ -61,22 +60,20 @@
 
       <section class="battle">
         <p class="bhead">
-          In the Auto Battler this card is
-          {#if breakdown.role === 'Fighter'}
-            a <b>⚔️ Fighter</b> — it joins the swing.
-          {:else}
-            <b>{battle.icon} {breakdown.effect}</b> — it holds the field.
-          {/if}
+          <span class="bicon">{breakdown.icon}</span>
+          <b>{breakdown.title}</b>
+          <span class="brole">
+            {breakdown.role === 'Fighter' ? 'joins the attack' : 'field effect'}
+          </span>
         </p>
         <ul class="boosts">
-          {#each breakdown.boosts as b (b.stat + b.source)}
-            <li>
-              <span class="bstat">{b.icon} {b.stat}</span>
-              <span class="bamt">{b.amount}</span>
-              <span class="bsrc">from {b.source}</span>
-            </li>
+          {#each breakdown.boosts as b (b.stat + b.amount)}
+            <li><span class="bamt">{b.amount}</span><span class="bstat">{b.stat}</span></li>
           {/each}
         </ul>
+        <p class="bbase">
+          Also <b>+{breakdown.hpFromDefence}</b> Team HP — like every card, from its Defence.
+        </p>
       </section>
 
       <div class="foot">
@@ -226,13 +223,23 @@
     background: var(--surface-2);
   }
   .bhead {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
     font-size: 13px;
-    color: var(--text-dim);
-    line-height: 1.5;
+  }
+  .bicon {
+    font-size: 15px;
   }
   .bhead b {
     color: var(--text);
-    font-weight: 600;
+    font-weight: 700;
+  }
+  .brole {
+    color: var(--text-faint);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
   .boosts {
     list-style: none;
@@ -242,32 +249,36 @@
     gap: 6px;
   }
   .boosts li {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
+    display: flex;
     align-items: baseline;
-    gap: 10px;
-    padding: 7px 10px;
+    gap: 12px;
+    padding: 8px 12px;
     border-radius: 6px;
     background: var(--surface);
     border: 1px solid var(--line);
   }
-  .bstat {
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--uncommon);
-  }
   .bamt {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 700;
+    color: var(--uncommon);
+    min-width: 3.5ch;
+  }
+  .bstat {
+    font-size: 13px;
+    font-weight: 600;
     color: var(--text);
   }
-  .bsrc {
-    font-size: 11px;
-    color: var(--text-faint);
+  .bbase {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .bbase b {
+    color: var(--text);
+    font-family: var(--font-mono);
   }
   .foot {
     display: flex;

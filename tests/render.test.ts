@@ -68,15 +68,14 @@ describe('component render (SSR)', () => {
     expect(body).not.toContain('class="foil');
   });
 
-  it('CardDetail spells out which team stats the card boosts', () => {
+  it('CardDetail names the team stat behind the card-face number', () => {
     const fighter: CardT = { ...sample, extract: 'He was a Greek astronomer.', strength: 42, defence: 60 };
     const { body } = render(CardDetail, { props: { card: fighter, onclose: () => {} } });
-    expect(body).toContain('Auto Battler');
-    expect(body).toContain('HP pool');
-    expect(body).toContain('+60'); // Defence → HP pool
-    expect(body).toContain('Attack');
-    expect(body).toContain('+42'); // Strength → Attack
-    expect(body).toContain('from Defence');
+    expect(body).toContain('Team Attack');
+    expect(body).toContain('+42'); // Strength → Team Attack
+    expect(body).toContain('Team HP');
+    expect(body).toContain('+60'); // Defence → Team HP
+    expect(body).toContain('from its Defence');
   });
 
   it('renders every rarity badge', () => {

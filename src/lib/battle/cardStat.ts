@@ -42,78 +42,59 @@ export function cardBattleStat(card: Card): CardBattleStat {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
- *  Full breakdown for the card-detail sheet: which TEAM stat each part of the
- *  card boosts, and by how much. Grouped by stat so "what does this boost?"
- *  reads at a glance.
+ *  Full breakdown for the card-detail sheet. The card face only has room for a
+ *  bare "+12%" / "+192"; this spells out *which team stat* that number moves.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/** A team-facing stat this card moves. */
-export type TeamStatName = 'HP pool' | 'Attack' | 'Regen' | 'Reflect';
-
 export interface StatBoost {
-  stat: TeamStatName;
-  icon: string;
-  /** e.g. "+400", "+12%", "+15/round", "18%" */
+  /** the team stat this raises, in words: "Team Attack", "Team HP", … */
+  stat: string;
+  /** how much: "+192", "+12%", "+15/round", "18%" */
   amount: string;
-  /** where it comes from — "Defence", "Fighter", or the effect name */
-  source: string;
 }
 
 export interface BattleBreakdown {
   role: 'Fighter' | 'Field';
-  /** effect name for a field card, else null */
-  effect: string | null;
-  /** every team stat this card touches, HP → Attack → Regen → Reflect */
+  /** ⚔️ for a fighter, else the effect's pictogram */
+  icon: string;
+  /** "Fighter" or the effect name */
+  title: string;
+  /** what this card actively raises (excludes the universal Defence → HP) */
   boosts: StatBoost[];
+  /** every card also adds this much to the team HP pool, from its Defence */
+  hpFromDefence: number;
 }
 
-const STAT_ICON: Record<TeamStatName, string> = {
-  'HP pool': '❤️',
-  Attack: '⚔️',
-  Regen: '♻️',
-  Reflect: '🪃'
-};
-
-const FIELD_STAT: Record<FieldStat, TeamStatName> = {
-  hpFlat: 'HP pool',
-  hpPct: 'HP pool',
-  atkFlat: 'Attack',
-  atkPct: 'Attack',
+/** field stat → the words shown to the player */
+const STAT_LABEL: Record<FieldStat, string> = {
+  hpFlat: 'Team HP',
+  hpPct: 'Team HP',
+  atkFlat: 'Team Attack',
+  atkPct: 'Team Attack',
   regen: 'Regen',
-  reflect: 'Reflect'
+  reflect: 'Damage reflect'
 };
-
-const ORDER: TeamStatName[] = ['HP pool', 'Attack', 'Regen', 'Reflect'];
 
 function amountFor(stat: FieldStat, compact: string): string {
   return stat === 'regen' ? compact.replace('/r', '/round') : compact;
 }
 
 export function battleBreakdown(card: Card): BattleBreakdown {
-  const living = classifyCard(card) === 'living';
-  const boosts: StatBoost[] = [
-    // every card, whatever its role, pads the shared HP pool with its Defence
-    { stat: 'HP pool', icon: STAT_ICON['HP pool'], amount: `+${card.defence}`, source: 'Defence' }
-  ];
-
-  if (living) {
-    boosts.push({
-      stat: 'Attack',
-      icon: STAT_ICON.Attack,
-      amount: `+${card.strength}`,
-      source: ROLE_META.living.label
-    });
-    return { role: 'Fighter', effect: null, boosts: sortBoosts(boosts) };
+  if (classifyCard(card) === 'living') {
+    return {
+      role: 'Fighter',
+      icon: ROLE_META.living.icon,
+      title: ROLE_META.living.label,
+      boosts: [{ stat: 'Team Attack', amount: `+${card.strength}` }],
+      hpFromDefence: card.defence
+    };
   }
-
   const e = effectFor(card);
-  for (const p of e.parts) {
-    const stat = FIELD_STAT[p.stat];
-    boosts.push({ stat, icon: STAT_ICON[stat], amount: amountFor(p.stat, p.compact), source: e.name });
-  }
-  return { role: 'Field', effect: e.name, boosts: sortBoosts(boosts) };
-}
-
-function sortBoosts(boosts: StatBoost[]): StatBoost[] {
-  return [...boosts].sort((a, b) => ORDER.indexOf(a.stat) - ORDER.indexOf(b.stat));
+  return {
+    role: 'Field',
+    icon: e.icon,
+    title: e.name,
+    boosts: e.parts.map((p) => ({ stat: STAT_LABEL[p.stat], amount: amountFor(p.stat, p.compact) })),
+    hpFromDefence: card.defence
+  };
 }

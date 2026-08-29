@@ -196,38 +196,37 @@ describe('cardBattleStat (the card-face line)', () => {
 });
 
 describe('battleBreakdown (the card-detail panel)', () => {
-  it('a fighter boosts HP pool (Defence) and Attack (Strength)', () => {
+  it('names the stat a bare "+192" would move — a fighter raises Team Attack', () => {
     const b = battleBreakdown(card({ strength: 640, defence: 410, extract: 'He is a footballer.' }));
     expect(b.role).toBe('Fighter');
-    expect(b.boosts).toEqual([
-      { stat: 'HP pool', icon: '❤️', amount: '+410', source: 'Defence' },
-      { stat: 'Attack', icon: '⚔️', amount: '+640', source: 'Fighter' }
-    ]);
+    expect(b.title).toBe('Fighter');
+    expect(b.boosts).toEqual([{ stat: 'Team Attack', amount: '+640' }]);
+    expect(b.hpFromDefence).toBe(410);
   });
 
-  it('a field card boosts HP pool (Defence) plus whatever its effect grants', () => {
+  it('names the stat for a field effect — Arsenal raises Team Attack', () => {
     const b = battleBreakdown(
       card({ tags: ['war'], strength: 600, defence: 800, extract: 'The war was a conflict.' })
     );
     expect(b.role).toBe('Field');
-    expect(b.effect).toBe('Arsenal');
+    expect(b.title).toBe('Arsenal');
+    expect(b.boosts).toEqual([{ stat: 'Team Attack', amount: '+180' }]);
+    expect(b.hpFromDefence).toBe(800);
+  });
+
+  it('one row per contribution, each naming its stat', () => {
+    const b = battleBreakdown(card({ tags: ['music'], strength: 0, defence: 400, extract: 'A song.' }));
     expect(b.boosts).toEqual([
-      { stat: 'HP pool', icon: '❤️', amount: '+800', source: 'Defence' },
-      { stat: 'Attack', icon: '⚔️', amount: '+180', source: 'Arsenal' }
+      { stat: 'Team Attack', amount: '+3%' },
+      { stat: 'Regen', amount: '+12/round' }
     ]);
   });
 
-  it('groups a multi-effect field card by team stat, HP → Attack → Regen → Reflect', () => {
+  it('a percentage effect reads as Team HP', () => {
     const b = battleBreakdown(
-      card({ tags: ['music'], strength: 0, defence: 400, extract: 'A song.' })
+      card({ tags: ['geography'], defence: 800, extract: 'France is a country.' })
     );
-    expect(b.boosts.map((x) => x.stat)).toEqual(['HP pool', 'Attack', 'Regen']);
-    expect(b.boosts.at(-1)).toEqual({
-      stat: 'Regen',
-      icon: '♻️',
-      amount: '+12/round',
-      source: 'Anthem'
-    });
+    expect(b.boosts).toEqual([{ stat: 'Team HP', amount: '+25%' }]);
   });
 });
 
