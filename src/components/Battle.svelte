@@ -29,15 +29,6 @@
   let roleFilter = $state<'all' | Role>('all');
   let rsort = $state<RSort>('power');
 
-  const initials = (t: string) =>
-    t
-      .replace(/\(.*?\)/g, '')
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? '')
-      .join('');
-
   // stored ids → cards, in pick order, dropping anything no longer owned
   const teamCards = $derived(
     $battleTeam.map((id) => byId.get(id)).filter((c): c is CardT => !!c)
@@ -168,27 +159,21 @@
     <div class="sheet">
       <div class="slots">
         {#each slots as m, i (i)}
-          <button
-            class="slot {m ? `filled rarity-${m.card.rarity}` : ''}"
-            type="button"
-            disabled={!m}
-            onclick={() => m && battleTeam.remove(m.card.id)}
-            title={m ? `Remove ${m.card.title}` : 'Empty slot'}
-          >
-            {#if m}
-              {#if m.card.image}
-                <img class="art" src={m.card.image} alt="" loading="lazy" />
-              {:else}
-                <span class="ini">{initials(m.card.title)}</span>
-              {/if}
+          {#if m}
+            <div class="slot filled" title="Remove {m.card.title}">
+              <Card
+                card={m.card}
+                onResolveImage={(url) => collection.setImage(m.card.id, url)}
+                onclick={() => battleTeam.remove(m.card.id)}
+              />
               <span class="role" title={m.effect ? m.effect.name : ROLE_META.living.label}>
                 {m.effect ? m.effect.icon : ROLE_META.living.icon}
               </span>
-              <span class="cap">{m.card.title}</span>
-            {:else}
-              <span class="plus">+</span>
-            {/if}
-          </button>
+              <span class="drop">remove</span>
+            </div>
+          {:else}
+            <div class="slot empty"><span class="plus">+</span></div>
+          {/if}
         {/each}
       </div>
 
@@ -387,7 +372,8 @@
   .slots {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 8px;
+    gap: clamp(6px, 1vw, 12px);
+    align-items: start;
   }
   @media (max-width: 620px) {
     .slots {
@@ -396,69 +382,56 @@
   }
   .slot {
     position: relative;
-    aspect-ratio: 3 / 4;
-    border: 1px dashed var(--line);
-    border-radius: var(--radius-sm);
+  }
+  /* the real Card renders here — foil layers, negated inversion and all */
+  .slot :global(.card) {
+    width: 100%;
+  }
+  .slot.empty {
+    aspect-ratio: 2.5 / 3.5;
     display: grid;
     place-items: center;
-    padding: 6px;
-    color: var(--text-faint);
+    border: 1px dashed var(--line);
+    border-radius: var(--card-radius);
     background: var(--surface-2);
-    overflow: hidden;
-    container-type: inline-size;
-  }
-  .slot.filled {
-    border-style: solid;
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-    color: var(--accent);
-    cursor: pointer;
-  }
-  .slot.filled:hover {
-    border-color: var(--accent);
-  }
-  .slot .art {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  .slot .ini {
-    font-size: clamp(16px, 6cqw, 22px);
-    font-weight: 700;
-    color: var(--accent);
-  }
-  .slot .role {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    font-size: 10px;
-    line-height: 1;
-    padding: 2px 3px;
-    border-radius: 4px;
-    color: var(--text);
-    background: color-mix(in srgb, var(--bg) 62%, transparent);
-    backdrop-filter: blur(3px);
-  }
-  .slot .cap {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    padding: 14px 3px 3px;
-    font-size: 8.5px;
-    line-height: 1.15;
-    text-align: center;
-    color: var(--text);
-    background: linear-gradient(transparent, color-mix(in srgb, var(--bg) 90%, transparent) 60%);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    color: var(--text-faint);
   }
   .slot .plus {
     font-size: 20px;
+  }
+  .slot .role {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 4;
+    font-size: 11px;
+    line-height: 1;
+    padding: 3px 4px;
+    border-radius: 5px;
+    color: var(--text);
+    background: color-mix(in srgb, var(--bg) 64%, transparent);
+    backdrop-filter: blur(4px);
+    pointer-events: none;
+  }
+  .slot .drop {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    border-radius: var(--card-radius);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: color-mix(in srgb, var(--mythic-2) 82%, transparent);
+    opacity: 0;
+    transition: opacity var(--dur) var(--ease);
+    pointer-events: none;
+  }
+  .slot:hover .drop {
+    opacity: 1;
   }
 
   .stats {
