@@ -5,6 +5,9 @@ import { classifyCard } from '../src/lib/battle/classify';
 import { assembleTeam, simulate, type TeamStats } from '../src/lib/battle/engine';
 import { GOLDFISH } from '../src/lib/battle/opponents';
 import { battleTeam } from '../src/lib/battle/team';
+import { effectFor, effectIdFor, resolveEffect, sumMods } from '../src/lib/battle/effects';
+import { EFFECTS, TAG_EFFECT } from '../src/lib/battle/effects.config';
+import { TAGS } from '../src/lib/tags';
 
 function card(over: Partial<Card> = {}): Card {
   return {
@@ -117,6 +120,52 @@ describe('simulate vs the Goldfish', () => {
   it('the last round carries a result line', () => {
     const r = simulate(stats({ maxHp: 9000, attack: 3500 }), GOLDFISH);
     expect(r.rounds.at(-1)?.lines.at(-1)?.kind).toBe('result');
+  });
+});
+
+describe('environmental effects config', () => {
+  it('maps every tag to a defined effect', () => {
+    for (const tag of TAGS) {
+      expect(TAG_EFFECT[tag], tag).toBeDefined();
+      expect(EFFECTS[TAG_EFFECT[tag]], `${tag} -> ${TAG_EFFECT[tag]}`).toBeDefined();
+    }
+  });
+
+  it("picks the effect from the card's strongest mapped tag", () => {
+    expect(effectIdFor(card({ tags: ['war', 'history'] }))).toBe('arsenal');
+    expect(effectIdFor(card({ tags: ['geography'] }))).toBe('terrain');
+    expect(effectIdFor(card({ tags: [] }))).toBe('landmark'); // DEFAULT_EFFECT
+  });
+
+  it('evaluates a contribution: base + perStrength·STR + perDefence·DEF', () => {
+    // spectacle = atkPct: base 0.04 + strength/4000
+    const e = resolveEffect('spectacle', card({ strength: 400 }));
+    expect(e.mods.atkPct).toBeCloseTo(0.04 + 400 / 4000);
+    expect(e.name).toBe('Spectacle');
+    expect(e.detail).toBe('+14% team attack');
+  });
+
+  it('rounds and floors the flat stats (regen min 1)', () => {
+    // sponsorship = regen: perDefence 0.03, min 1
+    expect(resolveEffect('sponsorship', card({ defence: 1000 })).mods.regen).toBe(30);
+    expect(resolveEffect('sponsorship', card({ defence: 5 })).mods.regen).toBe(1);
+  });
+
+  it('caps a single contribution and the team-wide reflect total', () => {
+    // countermeasures reflect maxes at 0.4 per card…
+    expect(resolveEffect('countermeasures', card({ strength: 9999 })).mods.reflect).toBe(0.4);
+    // …and the team total is capped at 0.75
+    const many = Array.from({ length: 5 }, () =>
+      resolveEffect('countermeasures', card({ strength: 9999 }))
+    );
+    expect(sumMods(many).reflect).toBe(0.75);
+  });
+
+  it('a multi-contribution effect sums into one line', () => {
+    const e = effectFor(card({ tags: ['music'], strength: 0, defence: 400 }));
+    expect(e.name).toBe('Anthem');
+    expect(e.mods.regen).toBe(12);
+    expect(e.detail).toContain('heal 12/round');
   });
 });
 

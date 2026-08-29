@@ -7,7 +7,7 @@
  */
 import type { Card } from '../types';
 import { classifyCard, type Role } from './classify';
-import { addMod, effectFor, ZERO_MODS, type EnvEffect, type FieldMods } from './effects';
+import { effectFor, sumMods, type FieldMods, type ResolvedEffect } from './effects';
 
 export const TEAM_SIZE = 7;
 export const MAX_MYTHIC = 1;
@@ -18,7 +18,7 @@ export interface TeamMember {
   card: Card;
   role: Role;
   /** the environmental effect this card contributes, when abstract */
-  effect: EnvEffect | null;
+  effect: ResolvedEffect | null;
 }
 
 export interface TeamStats {
@@ -47,10 +47,9 @@ export function assembleTeam(cards: Card[]): TeamStats {
     return { card, role, effect: role === 'abstract' ? effectFor(card) : null };
   });
 
-  let mods = ZERO_MODS;
-  for (const m of members) {
-    if (m.effect) mods = addMod(mods, m.effect.mod(m.card));
-  }
+  const mods = sumMods(
+    members.map((m) => m.effect).filter((e): e is ResolvedEffect => e !== null)
+  );
 
   const baseHp = cards.reduce((n, c) => n + c.defence, 0);
   const baseAtk = members

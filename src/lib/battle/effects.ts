@@ -1,28 +1,27 @@
 /**
- * Passive environmental effects. Every 'abstract' card on the team (a film, a
- * country, a company, a war…) plants one of these on the battlefield. The effect
- * is chosen from the card's primary thematic tag and scaled by the card's own
- * Strength / Defence, so a bigger article bends the field harder.
- *
- * Effects are additive across the team and fold into the assembled TeamStats
- * before the first round — see engine.ts.
+ * Environmental-effect evaluator. Reads the declarative rulebook in
+ * effects.config.ts and turns it into concrete field modifiers plus a
+ * description string for a given card. No effect numbers live here — only the
+ * arithmetic that applies them. See effects.config.ts to review or tune.
  */
 import type { Card } from '../types';
 import type { Tag } from '../tags';
+import {
+  DEFAULT_EFFECT,
+  EFFECTS,
+  TAG_EFFECT,
+  type Contribution,
+  type EffectId,
+  type FieldStat
+} from './effects.config';
 
-/** Running totals an effect can nudge while a team is assembled. */
+/** Running totals the effects fold into when a team is assembled. */
 export interface FieldMods {
-  /** flat HP added to the pool */
   hpFlat: number;
-  /** fractional HP bonus (0.08 = +8%), summed then applied once */
   hpPct: number;
-  /** flat attack added per round */
   atkFlat: number;
-  /** fractional attack bonus */
   atkPct: number;
-  /** HP healed at the end of each round */
   regen: number;
-  /** fraction of incoming damage bounced back at the attacker */
   reflect: number;
 }
 
@@ -35,130 +34,87 @@ export const ZERO_MODS: FieldMods = {
   reflect: 0
 };
 
-export interface EnvEffect {
-  key: string;
-  name: string;
-  /** one-line, card-specific description for the team sheet */
-  detail: (card: Card) => string;
-  /** contribution to the field, given this card */
-  mod: (card: Card) => Partial<FieldMods>;
-}
+/** Team reflect never exceeds this however many Countermeasures stack. */
+export const REFLECT_CAP = 0.75;
 
+const FLAT: ReadonlySet<FieldStat> = new Set<FieldStat>(['hpFlat', 'atkFlat', 'regen']);
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
-/** tag → effect. Tags not listed fall back to LANDMARK. */
-const BY_TAG: Partial<Record<Tag, EnvEffect>> = {
-  geography: {
-    key: 'terrain',
-    name: 'Home Terrain',
-    detail: (c) => `+${pct(0.05 + c.defence / 4000)} team HP`,
-    mod: (c) => ({ hpPct: 0.05 + c.defence / 4000 })
-  },
-  cinema: {
-    key: 'spectacle',
-    name: 'Spectacle',
-    detail: (c) => `+${pct(0.04 + c.strength / 4000)} team attack`,
-    mod: (c) => ({ atkPct: 0.04 + c.strength / 4000 })
-  },
-  music: {
-    key: 'anthem',
-    name: 'Anthem',
-    detail: (c) => `+${pct(0.03 + c.strength / 5000)} attack, heal ${regen(c)}/round`,
-    mod: (c) => ({ atkPct: 0.03 + c.strength / 5000, regen: regen(c) })
-  },
-  arts: {
-    key: 'muse',
-    name: 'Muse',
-    detail: (c) => `+${pct(0.05 + c.strength / 4000)} team attack`,
-    mod: (c) => ({ atkPct: 0.05 + c.strength / 4000 })
-  },
-  games: {
-    key: 'meta',
-    name: 'Metagame',
-    detail: (c) => `+${pct(0.04 + c.strength / 4500)} attack`,
-    mod: (c) => ({ atkPct: 0.04 + c.strength / 4500 })
-  },
-  war: {
-    key: 'arsenal',
-    name: 'Arsenal',
-    detail: (c) => `+${flatAtk(c)} flat attack`,
-    mod: (c) => ({ atkFlat: flatAtk(c) })
-  },
-  science: {
-    key: 'countermeasures',
-    name: 'Countermeasures',
-    detail: (c) => `reflect ${pct(reflect(c))} of damage taken`,
-    mod: (c) => ({ reflect: reflect(c) })
-  },
-  business: {
-    key: 'sponsorship',
-    name: 'Sponsorship',
-    detail: (c) => `heal ${regen(c)} HP each round`,
-    mod: (c) => ({ regen: regen(c) })
-  },
-  politics: {
-    key: 'doctrine',
-    name: 'Doctrine',
-    detail: () => `+3% attack and +3% team HP`,
-    mod: () => ({ atkPct: 0.03, hpPct: 0.03 })
-  },
-  history: {
-    key: 'legacy',
-    name: 'Legacy',
-    detail: (c) => `+${flatHp(c)} flat HP`,
-    mod: (c) => ({ hpFlat: flatHp(c) })
-  },
-  religion: {
-    key: 'faith',
-    name: 'Faith',
-    detail: (c) => `heal ${regen(c)}/round, +2% team HP`,
-    mod: (c) => ({ regen: regen(c), hpPct: 0.02 })
-  },
-  sport: {
-    key: 'training',
-    name: 'Training',
-    detail: (c) => `+${pct(0.03 + c.strength / 5000)} attack`,
-    mod: (c) => ({ atkPct: 0.03 + c.strength / 5000 })
+/** An effect resolved against one specific card — no closures, just values. */
+export interface ResolvedEffect {
+  id: EffectId;
+  name: string;
+  /** human-readable summary, e.g. "+7% team attack · heal 12/round" */
+  detail: string;
+  mods: FieldMods;
+}
+
+function valueOf(c: Contribution, card: Card): number {
+  let v =
+    (c.base ?? 0) +
+    (c.perStrength ?? 0) * card.strength +
+    (c.perDefence ?? 0) * card.defence;
+  if (FLAT.has(c.stat)) v = Math.round(v);
+  if (c.min != null) v = Math.max(c.min, v);
+  if (c.max != null) v = Math.min(c.max, v);
+  return v;
+}
+
+function phrase(stat: FieldStat, v: number): string {
+  switch (stat) {
+    case 'hpFlat':
+      return `+${v} flat HP`;
+    case 'hpPct':
+      return `+${pct(v)} team HP`;
+    case 'atkFlat':
+      return `+${v} flat attack`;
+    case 'atkPct':
+      return `+${pct(v)} team attack`;
+    case 'regen':
+      return `heal ${v}/round`;
+    case 'reflect':
+      return `reflect ${pct(v)} of damage taken`;
   }
-};
+}
 
-const LANDMARK: EnvEffect = {
-  key: 'landmark',
-  name: 'Landmark',
-  detail: (c) => `+${flatHp(c)} flat HP`,
-  mod: (c) => ({ hpFlat: flatHp(c) })
-};
+/** Build the concrete effect an id produces for this card. */
+export function resolveEffect(id: EffectId, card: Card): ResolvedEffect {
+  const def = EFFECTS[id];
+  const mods: FieldMods = { ...ZERO_MODS };
+  const parts: string[] = [];
+  for (const c of def.contributions) {
+    const v = valueOf(c, card);
+    mods[c.stat] += v;
+    parts.push(phrase(c.stat, v));
+  }
+  return { id, name: def.name, detail: parts.join(' · '), mods };
+}
 
-function flatHp(c: Card) {
-  return Math.round(c.defence * 0.2);
-}
-function flatAtk(c: Card) {
-  return Math.round(c.strength * 0.3);
-}
-function regen(c: Card) {
-  return Math.max(1, Math.round(c.defence * 0.03));
-}
-function reflect(c: Card) {
-  return Math.min(0.4, 0.1 + c.strength / 6000);
+/** The effect id an abstract card's tags select. */
+export function effectIdFor(card: Card): EffectId {
+  for (const tag of card.tags ?? []) {
+    const id = TAG_EFFECT[tag as Tag];
+    if (id) return id;
+  }
+  return DEFAULT_EFFECT;
 }
 
 /** The environmental effect an abstract card brings to the field. */
-export function effectFor(card: Card): EnvEffect {
-  for (const tag of card.tags ?? []) {
-    const e = BY_TAG[tag as Tag];
-    if (e) return e;
-  }
-  return LANDMARK;
+export function effectFor(card: Card): ResolvedEffect {
+  return resolveEffect(effectIdFor(card), card);
 }
 
-/** Merge a partial mod into a running total. */
-export function addMod(into: FieldMods, part: Partial<FieldMods>): FieldMods {
-  return {
-    hpFlat: into.hpFlat + (part.hpFlat ?? 0),
-    hpPct: into.hpPct + (part.hpPct ?? 0),
-    atkFlat: into.atkFlat + (part.atkFlat ?? 0),
-    atkPct: into.atkPct + (part.atkPct ?? 0),
-    regen: into.regen + (part.regen ?? 0),
-    reflect: Math.min(0.75, into.reflect + (part.reflect ?? 0))
-  };
+/** Fold a list of resolved effects into one field total. */
+export function sumMods(effects: ResolvedEffect[]): FieldMods {
+  const total: FieldMods = { ...ZERO_MODS };
+  for (const e of effects) {
+    total.hpFlat += e.mods.hpFlat;
+    total.hpPct += e.mods.hpPct;
+    total.atkFlat += e.mods.atkFlat;
+    total.atkPct += e.mods.atkPct;
+    total.regen += e.mods.regen;
+    total.reflect += e.mods.reflect;
+  }
+  total.reflect = Math.min(REFLECT_CAP, total.reflect);
+  return total;
 }

@@ -199,7 +199,7 @@
             {#if m.effect}
               <li>
                 <span class="ename">{m.effect.name}</span>
-                <span class="edetail">{m.effect.detail(m.card)}</span>
+                <span class="edetail">{m.effect.detail}</span>
                 <span class="efrom">— {m.card.title}</span>
               </li>
             {/if}
