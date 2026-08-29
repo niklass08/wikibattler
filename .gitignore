@@ -5,3 +5,6 @@ dist/
 .vite/
 scripts/.cache/
 coverage/
+
+# stray apt downloads
+*.deb
