@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from 'svelte/server';
 import Card from '../src/components/Card.svelte';
+import CardDetail from '../src/components/CardDetail.svelte';
 import RarityBadge from '../src/components/RarityBadge.svelte';
 import App from '../src/App.svelte';
 import type { Card as CardT } from '../src/lib/types';
@@ -65,6 +66,17 @@ describe('component render (SSR)', () => {
     const { body } = render(Card, { props: { card: { ...sample, foil: 0 } } });
     expect(body).not.toContain('foiled');
     expect(body).not.toContain('class="foil');
+  });
+
+  it('CardDetail spells out which team stats the card boosts', () => {
+    const fighter: CardT = { ...sample, extract: 'He was a Greek astronomer.', strength: 42, defence: 60 };
+    const { body } = render(CardDetail, { props: { card: fighter, onclose: () => {} } });
+    expect(body).toContain('Auto Battler');
+    expect(body).toContain('HP pool');
+    expect(body).toContain('+60'); // Defence → HP pool
+    expect(body).toContain('Attack');
+    expect(body).toContain('+42'); // Strength → Attack
+    expect(body).toContain('from Defence');
   });
 
   it('renders every rarity badge', () => {

@@ -40,6 +40,14 @@ export const REFLECT_CAP = 0.75;
 const FLAT: ReadonlySet<FieldStat> = new Set<FieldStat>(['hpFlat', 'atkFlat', 'regen']);
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
+/** One resolved contribution: which field stat, and by how much. */
+export interface ResolvedPart {
+  stat: FieldStat;
+  value: number;
+  /** compact magnitude, e.g. "+14%", "+180", "+15/r" */
+  compact: string;
+}
+
 /** An effect resolved against one specific card — no closures, just values. */
 export interface ResolvedEffect {
   id: EffectId;
@@ -50,6 +58,8 @@ export interface ResolvedEffect {
   headline: string;
   /** human-readable summary, e.g. "+7% team attack · heal 12/round" */
   detail: string;
+  /** every contribution, in config order */
+  parts: ResolvedPart[];
   mods: FieldMods;
 }
 
@@ -101,15 +111,23 @@ function compact(stat: FieldStat, v: number): string {
 export function resolveEffect(id: EffectId, card: Card): ResolvedEffect {
   const def = EFFECTS[id];
   const mods: FieldMods = { ...ZERO_MODS };
-  const parts: string[] = [];
-  let headline = '';
+  const phrases: string[] = [];
+  const parts: ResolvedPart[] = [];
   for (const c of def.contributions) {
     const v = valueOf(c, card);
     mods[c.stat] += v;
-    parts.push(phrase(c.stat, v));
-    if (!headline) headline = compact(c.stat, v);
+    phrases.push(phrase(c.stat, v));
+    parts.push({ stat: c.stat, value: v, compact: compact(c.stat, v) });
   }
-  return { id, name: def.name, icon: def.icon, headline, detail: parts.join(' · '), mods };
+  return {
+    id,
+    name: def.name,
+    icon: def.icon,
+    headline: parts[0]?.compact ?? '',
+    detail: phrases.join(' · '),
+    parts,
+    mods
+  };
 }
 
 /** The effect id an abstract card's tags select. */

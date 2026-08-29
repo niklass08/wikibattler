@@ -7,7 +7,7 @@ import { GOLDFISH } from '../src/lib/battle/opponents';
 import { battleTeam } from '../src/lib/battle/team';
 import { effectFor, effectIdFor, resolveEffect, sumMods } from '../src/lib/battle/effects';
 import { EFFECTS, TAG_EFFECT } from '../src/lib/battle/effects.config';
-import { cardBattleStat } from '../src/lib/battle/cardStat';
+import { cardBattleStat, battleBreakdown } from '../src/lib/battle/cardStat';
 import { TAGS } from '../src/lib/tags';
 
 function card(over: Partial<Card> = {}): Card {
@@ -192,6 +192,42 @@ describe('cardBattleStat (the card-face line)', () => {
     expect(s.label).toBe('Arsenal'); // war -> arsenal, atkFlat = round(600 * 0.3)
     expect(s.value).toBe('+180');
     expect(s.icon).toBe('🗡️');
+  });
+});
+
+describe('battleBreakdown (the card-detail panel)', () => {
+  it('a fighter boosts HP pool (Defence) and Attack (Strength)', () => {
+    const b = battleBreakdown(card({ strength: 640, defence: 410, extract: 'He is a footballer.' }));
+    expect(b.role).toBe('Fighter');
+    expect(b.boosts).toEqual([
+      { stat: 'HP pool', icon: '❤️', amount: '+410', source: 'Defence' },
+      { stat: 'Attack', icon: '⚔️', amount: '+640', source: 'Fighter' }
+    ]);
+  });
+
+  it('a field card boosts HP pool (Defence) plus whatever its effect grants', () => {
+    const b = battleBreakdown(
+      card({ tags: ['war'], strength: 600, defence: 800, extract: 'The war was a conflict.' })
+    );
+    expect(b.role).toBe('Field');
+    expect(b.effect).toBe('Arsenal');
+    expect(b.boosts).toEqual([
+      { stat: 'HP pool', icon: '❤️', amount: '+800', source: 'Defence' },
+      { stat: 'Attack', icon: '⚔️', amount: '+180', source: 'Arsenal' }
+    ]);
+  });
+
+  it('groups a multi-effect field card by team stat, HP → Attack → Regen → Reflect', () => {
+    const b = battleBreakdown(
+      card({ tags: ['music'], strength: 0, defence: 400, extract: 'A song.' })
+    );
+    expect(b.boosts.map((x) => x.stat)).toEqual(['HP pool', 'Attack', 'Regen']);
+    expect(b.boosts.at(-1)).toEqual({
+      stat: 'Regen',
+      icon: '♻️',
+      amount: '+12/round',
+      source: 'Anthem'
+    });
   });
 });
 

@@ -3,7 +3,7 @@
   import { FOIL_LABEL, NEGATED_LABEL, type Card as CardT } from '../lib/types';
   import { STAT_MAX } from '../lib/rarity';
   import { TAG_LABEL, type Tag } from '../lib/tags';
-  import { cardBattleStat } from '../lib/battle/cardStat';
+  import { cardBattleStat, battleBreakdown } from '../lib/battle/cardStat';
   import Card from './Card.svelte';
   import RarityBadge from './RarityBadge.svelte';
   import { collection, favourites } from '../lib/collection';
@@ -13,6 +13,7 @@
   const count = $derived($collection[card.id]?.count ?? 0);
   const isFav = $derived($favourites.has(card.id));
   const battle = $derived(cardBattleStat(card));
+  const breakdown = $derived(battleBreakdown(card));
 
   function onkey(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose();
@@ -56,8 +57,27 @@
         <div><dt>Defence</dt><dd>{card.defence}<span class="max">/{STAT_MAX}</span></dd><dd class="raw">{card.raw.bytes.toLocaleString()} bytes</dd></div>
         <div><dt>Popularity</dt><dd>{card.raw.monthlyViews.toLocaleString()}</dd><dd class="raw">views / month</dd></div>
         <div><dt>Owned</dt><dd>{count}</dd><dd class="raw">cop{count === 1 ? 'y' : 'ies'}</dd></div>
-        <div title={battle.hint}><dt>Battle</dt><dd>{battle.icon} {battle.value}</dd><dd class="raw">{battle.label}</dd></div>
       </dl>
+
+      <section class="battle">
+        <p class="bhead">
+          In the Auto Battler this card is
+          {#if breakdown.role === 'Fighter'}
+            a <b>⚔️ Fighter</b> — it joins the swing.
+          {:else}
+            <b>{battle.icon} {breakdown.effect}</b> — it holds the field.
+          {/if}
+        </p>
+        <ul class="boosts">
+          {#each breakdown.boosts as b (b.stat + b.source)}
+            <li>
+              <span class="bstat">{b.icon} {b.stat}</span>
+              <span class="bamt">{b.amount}</span>
+              <span class="bsrc">from {b.source}</span>
+            </li>
+          {/each}
+        </ul>
+      </section>
 
       <div class="foot">
         <button
@@ -195,6 +215,59 @@
   .grid dd.raw {
     font-size: 11px;
     color: var(--text-dim);
+  }
+
+  /* --- what the card does in a battle --- */
+  .battle {
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+  }
+  .bhead {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .bhead b {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .boosts {
+    list-style: none;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .boosts li {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: baseline;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+  }
+  .bstat {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--uncommon);
+  }
+  .bamt {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .bsrc {
+    font-size: 11px;
+    color: var(--text-faint);
   }
   .foot {
     display: flex;
