@@ -90,18 +90,25 @@ function createCollection() {
       update((c) => {
         const next: Collection = { ...c };
         const now = new Date().toISOString();
-        for (const card of cards) {
+        for (const raw of cards) {
+          // a mythic always carries a signature — roll one if it slipped through
+          // without (an old queued pack); a re-pull keeps whatever it first got
+          const card =
+            raw.rarity === 'mythic' && !raw.signature
+              ? { ...raw, signature: rollSignature(raw) }
+              : raw;
           const existing = next[card.id];
           if (existing) {
             // refresh card data, but keep the best finishes, any image and tags
             const foil = Math.max(existing.card.foil, card.foil) as Card['foil'];
             const negated = existing.card.negated || card.negated;
+            const signature = existing.card.signature ?? card.signature;
             const image = card.image ?? existing.card.image;
             const tags = card.tags.length ? card.tags : existing.card.tags;
             next[card.id] = {
               ...existing,
               count: existing.count + 1,
-              card: { ...card, foil, negated, image, tags }
+              card: { ...card, foil, negated, signature, image, tags }
             };
           } else {
             next[card.id] = { count: 1, firstOpenedAt: now, card } satisfies OwnedEntry;

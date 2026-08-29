@@ -72,6 +72,17 @@ describe('collection.addCards foil handling', () => {
     collection.reset();
   });
 
+  it('rolls a signature for a mythic added without one, and never re-rolls it', () => {
+    collection.reset();
+    const m = { ...card(12, 'mythic'), tags: ['war'] };
+    collection.addCards([{ ...m, signature: null }]); // e.g. from a stale queued pack
+    const rolled = get(collection)[12].card.signature;
+    expect(rolled).not.toBeNull();
+    collection.addCards([{ ...m, signature: null }]); // a re-pull
+    expect(get(collection)[12].card.signature).toBe(rolled);
+    collection.reset();
+  });
+
   it('setImage backfills art only for a card that has none', () => {
     collection.reset();
     collection.addCards([{ ...card(20, 'common'), image: null }]);

@@ -9,6 +9,7 @@
 import { writable } from 'svelte/store';
 import type { Card } from './types';
 import { buildPack } from './draw';
+import { applyMythicSignatures } from './signature';
 
 export const MAX_PREFETCH = 10;
 const KEY = 'wikitcg:packqueue:v1';
@@ -89,7 +90,9 @@ export function take(): Card[] | null {
   const pack = queue.shift() ?? null;
   persist();
   if (pack) void refill();
-  return pack;
+  // packs queued before a mechanic shipped need a top-up (mythic signatures);
+  // applyMythicSignatures is a no-op for a card that already has one
+  return pack ? applyMythicSignatures(pack) : null;
 }
 
 /** User-triggered retry after an error. */
