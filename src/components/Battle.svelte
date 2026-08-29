@@ -11,15 +11,32 @@
     type BattleResult
   } from '../lib/battle/engine';
   import { GOLDFISH } from '../lib/battle/opponents';
+  import { classifyCard, type Role } from '../lib/battle/classify';
   import { view } from '../stores/view';
   import Card from './Card.svelte';
-  import type { Card as CardT } from '../lib/types';
+  import { RARITIES, type Card as CardT, type Rarity } from '../lib/types';
 
   type Phase = 'build' | 'fight';
   let phase = $state<Phase>('build');
 
   const owned = $derived(Object.values($collection).map((e) => e.card));
   const byId = $derived(new Map(owned.map((c) => [c.id, c] as const)));
+  const roleOf = $derived(new Map(owned.map((c) => [c.id, classifyCard(c)] as const)));
+
+  // --- roster filtering / sorting -----------------------------------------
+  type RSort = 'power' | 'strength' | 'defence' | 'rarity' | 'recent' | 'name';
+  let rarityFilter = $state<Rarity | 'all'>('all');
+  let roleFilter = $state<'all' | Role>('all');
+  let rsort = $state<RSort>('power');
+
+  const initials = (t: string) =>
+    t
+      .replace(/\(.*?\)/g, '')
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? '')
+      .join('');
 
   // stored ids → cards, in pick order, dropping anything no longer owned
   const teamCards = $derived(
@@ -31,10 +48,27 @@
   );
   const mythicCount = $derived(teamCards.filter((c) => c.rarity === 'mythic').length);
   const full = $derived(teamCards.length >= TEAM_SIZE);
-  // stable power order — picked cards stay put and just get the ring, so the
-  // grid doesn't reshuffle under the cursor while you build
+  // filtered + sorted; picked cards keep their place and just get the ring, so
+  // the grid never reshuffles under the cursor while you build
   const roster = $derived(
-    [...owned].sort((a, b) => b.strength + b.defence - (a.strength + a.defence))
+    owned
+      .filter((c) => rarityFilter === 'all' || c.rarity === rarityFilter)
+      .filter((c) => roleFilter === 'all' || roleOf.get(c.id) === roleFilter)
+      .sort((a, b) => {
+        if (rsort === 'name') return a.title.localeCompare(b.title);
+        if (rsort === 'strength') return b.strength - a.strength;
+        if (rsort === 'defence') return b.defence - a.defence;
+        if (rsort === 'rarity') {
+          const d = RARITIES.indexOf(b.rarity) - RARITIES.indexOf(a.rarity);
+          return d !== 0 ? d : a.title.localeCompare(b.title);
+        }
+        if (rsort === 'recent') {
+          const ta = $collection[a.id]?.firstOpenedAt ?? '';
+          const tb = $collection[b.id]?.firstOpenedAt ?? '';
+          return tb.localeCompare(ta);
+        }
+        return b.strength + b.defence - (a.strength + a.defence); // power
+      })
   );
 
   function blockedReason(card: CardT): string | null {
@@ -58,7 +92,9 @@
   function tick() {
     if (!result || shown >= result.rounds.length) return;
     shown += 1;
-    timer = setTimeout(tick, shown === 1 ? 550 : 850);
+    // read the opening rounds at a human pace, then accelerate through a grind
+    const delay = shown < 6 ? 800 : shown < 16 ? 360 : 130;
+    timer = setTimeout(tick, delay);
   }
 
   function startFight() {
@@ -132,8 +168,15 @@
             title={m ? `Remove ${m.card.title}` : 'Empty slot'}
           >
             {#if m}
-              <span class="mini">{m.card.title}</span>
-              <span class="role">{m.role === 'living' ? '⚔' : '✦'}</span>
+              {#if m.card.image}
+                <img class="art" src={m.card.image} alt="" loading="lazy" />
+              {:else}
+                <span class="ini">{initials(m.card.title)}</span>
+              {/if}
+              <span class="role" title={m.role === 'living' ? 'Fighter' : 'Field'}>
+                {m.role === 'living' ? '⚔' : '✦'}
+              </span>
+              <span class="cap">{m.card.title}</span>
             {:else}
               <span class="plus">+</span>
             {/if}
@@ -174,16 +217,61 @@
       </div>
     </div>
 
-    <div class="grid">
-      {#each roster as card (card.id)}
-        {@const picked = $battleTeam.includes(card.id)}
-        {@const blocked = blockedReason(card)}
-        <div class="pick" class:picked class:blocked={!!blocked} title={blocked ?? ''}>
-          <Card {card} onclick={() => pick(card)} dupCount={$collection[card.id]?.count ?? 1} />
-          {#if picked}<span class="flag">in team</span>{/if}
-        </div>
-      {/each}
+    <div class="filters">
+      <div class="chips">
+        <button class:on={rarityFilter === 'all'} onclick={() => (rarityFilter = 'all')}>All</button>
+        {#each RARITIES as r (r)}
+          <button
+            class="rarity-{r}"
+            class:on={rarityFilter === r}
+            onclick={() => (rarityFilter = r)}
+          >
+            {r}
+          </button>
+        {/each}
+      </div>
+      <div class="chips">
+        <button class:on={roleFilter === 'all'} onclick={() => (roleFilter = 'all')}>Any role</button>
+        <button class:on={roleFilter === 'living'} onclick={() => (roleFilter = 'living')}>
+          ⚔ Fighters
+        </button>
+        <button class:on={roleFilter === 'abstract'} onclick={() => (roleFilter = 'abstract')}>
+          ✦ Field
+        </button>
+      </div>
+      <label class="sort">
+        Sort
+        <select bind:value={rsort}>
+          <option value="power">Power</option>
+          <option value="strength">Strength</option>
+          <option value="defence">Defence</option>
+          <option value="rarity">Rarity</option>
+          <option value="recent">Recent</option>
+          <option value="name">Name</option>
+        </select>
+      </label>
     </div>
+
+    {#if roster.length === 0}
+      <p class="none">No cards match these filters.</p>
+    {:else}
+      <div class="grid">
+        {#each roster as card (card.id)}
+          {@const picked = $battleTeam.includes(card.id)}
+          {@const blocked = blockedReason(card)}
+          <div class="pick" class:picked class:blocked={!!blocked} title={blocked ?? ''}>
+            <Card {card} onclick={() => pick(card)} dupCount={$collection[card.id]?.count ?? 1} />
+            {#if picked}
+              <span class="flag">in team</span>
+            {:else}
+              <span class="flag role-tag">
+                {roleOf.get(card.id) === 'living' ? '⚔ fighter' : '✦ field'}
+              </span>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
   {:else if result}
     <div class="arena" in:fade={{ duration: 160 }}>
       <div class="sides">
@@ -309,29 +397,57 @@
     color: var(--text-faint);
     background: var(--surface-2);
     overflow: hidden;
+    container-type: inline-size;
   }
   .slot.filled {
     border-style: solid;
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
     color: var(--accent);
     cursor: pointer;
   }
-  .slot .mini {
-    font-size: 10px;
-    line-height: 1.25;
-    text-align: center;
-    display: -webkit-box;
-    -webkit-line-clamp: 4;
-    line-clamp: 4;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+  .slot.filled:hover {
+    border-color: var(--accent);
+  }
+  .slot .art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .slot .ini {
+    font-size: clamp(16px, 6cqw, 22px);
+    font-weight: 700;
     color: var(--accent);
   }
   .slot .role {
     position: absolute;
-    top: 3px;
-    right: 5px;
-    font-size: 11px;
+    top: 4px;
+    right: 4px;
+    font-size: 10px;
+    line-height: 1;
+    padding: 2px 3px;
+    border-radius: 4px;
+    color: var(--text);
+    background: color-mix(in srgb, var(--bg) 62%, transparent);
+    backdrop-filter: blur(3px);
+  }
+  .slot .cap {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 14px 3px 3px;
+    font-size: 8.5px;
+    line-height: 1.15;
+    text-align: center;
+    color: var(--text);
+    background: linear-gradient(transparent, color-mix(in srgb, var(--bg) 90%, transparent) 60%);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
   .slot .plus {
     font-size: 20px;
@@ -395,10 +511,77 @@
     gap: 10px;
   }
 
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px 16px;
+    margin-bottom: 22px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .chips button {
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    text-transform: capitalize;
+    color: var(--text-dim);
+    transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease),
+      background var(--dur) var(--ease);
+  }
+  .chips button:hover {
+    color: var(--text);
+  }
+  .chips button.on {
+    color: var(--text);
+    border-color: var(--accent, var(--text));
+    background: color-mix(in srgb, var(--accent, var(--text)) 14%, transparent);
+  }
+  .sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .sort select {
+    font: inherit;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 7px 10px;
+  }
+  .none {
+    color: var(--text-dim);
+    font-size: 14px;
+    text-align: center;
+    padding-block: 12vh;
+  }
+
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: clamp(14px, 2vw, 24px);
+  }
+  .pick .role-tag {
+    color: var(--text);
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    transition: opacity var(--dur) var(--ease);
+  }
+  .pick:hover .role-tag {
+    opacity: 1;
   }
   .pick {
     position: relative;

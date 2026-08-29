@@ -93,30 +93,29 @@ describe('assembleTeam', () => {
 });
 
 describe('simulate vs the Goldfish', () => {
-  it('one big swing ends it in a round', () => {
-    const r = simulate(stats({ maxHp: 900, attack: 400 }), GOLDFISH);
+  it('the goldfish soaks several rounds against a normal team', () => {
+    const r = simulate(stats({ maxHp: 9000, attack: 1000 }), GOLDFISH); // 6000 / 1000 -> 6 rounds
     expect(r.outcome).toBe('win');
-    expect(r.rounds).toHaveLength(1);
-    expect(r.damageDealt).toBe(400);
-    expect(r.damageTaken).toBe(0);
+    expect(r.rounds).toHaveLength(6);
+    expect(r.damageDealt).toBe(6000);
+    expect(r.damageTaken).toBe(45 * 5); // it answers on rounds 1..5 only
+    expect(r.rounds.at(-1)?.playerHp).toBe(9000 - 225);
   });
 
-  it('a slow team still wins, taking a flop each round until then', () => {
-    const r = simulate(stats({ maxHp: 500, attack: 30 }), GOLDFISH); // 250 / 30 -> 9 rounds
+  it('a huge team still needs a couple of rounds', () => {
+    const r = simulate(stats({ maxHp: 9000, attack: 3500 }), GOLDFISH);
     expect(r.outcome).toBe('win');
-    expect(r.rounds).toHaveLength(9);
-    expect(r.damageTaken).toBe(12 * 8); // the goldfish answers on rounds 1..8 only
-    expect(r.rounds.at(-1)?.playerHp).toBe(500 - 96);
+    expect(r.rounds).toHaveLength(2);
   });
 
   it('a team with no fighters cannot win and eventually falls', () => {
-    const r = simulate(stats({ maxHp: 40, attack: 0 }), GOLDFISH);
+    const r = simulate(stats({ maxHp: 200, attack: 0 }), GOLDFISH);
     expect(r.outcome).toBe('loss');
     expect(r.damageDealt).toBe(0);
   });
 
   it('the last round carries a result line', () => {
-    const r = simulate(stats({ maxHp: 900, attack: 400 }), GOLDFISH);
+    const r = simulate(stats({ maxHp: 9000, attack: 3500 }), GOLDFISH);
     expect(r.rounds.at(-1)?.lines.at(-1)?.kind).toBe('result');
   });
 });
