@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from 'svelte/server';
 import Card from '../src/components/Card.svelte';
+import CardDetail from '../src/components/CardDetail.svelte';
 import RarityBadge from '../src/components/RarityBadge.svelte';
 import App from '../src/App.svelte';
 import type { Card as CardT } from '../src/lib/types';
@@ -29,6 +30,16 @@ describe('component render (SSR)', () => {
     expect(body).toContain('rarity-mythic');
   });
 
+  it('shows the battle line on the card face', () => {
+    // "an ancient Greek analogue computer" -> abstract -> Landmark: +round(77*0.2)
+    const { body } = render(Card, { props: { card: sample } });
+    expect(body).toContain('stat bt');
+    expect(body).toContain('+15');
+    // a fighter shows its attack contribution instead
+    const fighter = { ...sample, extract: 'He was a Greek astronomer and mathematician.', strength: 42 };
+    expect(render(Card, { props: { card: fighter } }).body).toMatch(/stat bt[\s\S]*?42/);
+  });
+
   it('renders a face-down Card', () => {
     const { body } = render(Card, { props: { card: sample, faceDown: true } });
     expect(body).toContain('Unrevealed card');
@@ -55,6 +66,16 @@ describe('component render (SSR)', () => {
     const { body } = render(Card, { props: { card: { ...sample, foil: 0 } } });
     expect(body).not.toContain('foiled');
     expect(body).not.toContain('class="foil');
+  });
+
+  it('CardDetail names the team stat behind the card-face number', () => {
+    const fighter: CardT = { ...sample, extract: 'He was a Greek astronomer.', strength: 42, defence: 60 };
+    const { body } = render(CardDetail, { props: { card: fighter, onclose: () => {} } });
+    expect(body).toContain('Team Attack');
+    expect(body).toContain('+42'); // Strength → Team Attack
+    expect(body).toContain('Team HP');
+    expect(body).toContain('+60'); // Defence → Team HP
+    expect(body).toContain('from its Defence');
   });
 
   it('renders every rarity badge', () => {

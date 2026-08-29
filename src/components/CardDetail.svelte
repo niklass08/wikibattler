@@ -3,6 +3,7 @@
   import { FOIL_LABEL, NEGATED_LABEL, type Card as CardT } from '../lib/types';
   import { STAT_MAX } from '../lib/rarity';
   import { TAG_LABEL, type Tag } from '../lib/tags';
+  import { battleBreakdown } from '../lib/battle/cardStat';
   import Card from './Card.svelte';
   import RarityBadge from './RarityBadge.svelte';
   import { collection, favourites } from '../lib/collection';
@@ -11,6 +12,7 @@
 
   const count = $derived($collection[card.id]?.count ?? 0);
   const isFav = $derived($favourites.has(card.id));
+  const breakdown = $derived(battleBreakdown(card));
 
   function onkey(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose();
@@ -55,6 +57,24 @@
         <div><dt>Popularity</dt><dd>{card.raw.monthlyViews.toLocaleString()}</dd><dd class="raw">views / month</dd></div>
         <div><dt>Owned</dt><dd>{count}</dd><dd class="raw">cop{count === 1 ? 'y' : 'ies'}</dd></div>
       </dl>
+
+      <section class="battle">
+        <p class="bhead">
+          <span class="bicon">{breakdown.icon}</span>
+          <b>{breakdown.title}</b>
+          <span class="brole">
+            {breakdown.role === 'Fighter' ? 'joins the attack' : 'field effect'}
+          </span>
+        </p>
+        <ul class="boosts">
+          {#each breakdown.boosts as b (b.stat + b.amount)}
+            <li><span class="bamt">{b.amount}</span><span class="bstat">{b.stat}</span></li>
+          {/each}
+        </ul>
+        <p class="bbase">
+          Also <b>+{breakdown.hpFromDefence}</b> Team HP — like every card, from its Defence.
+        </p>
+      </section>
 
       <div class="foot">
         <button
@@ -192,6 +212,73 @@
   .grid dd.raw {
     font-size: 11px;
     color: var(--text-dim);
+  }
+
+  /* --- what the card does in a battle --- */
+  .battle {
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+  }
+  .bhead {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .bicon {
+    font-size: 15px;
+  }
+  .bhead b {
+    color: var(--text);
+    font-weight: 700;
+  }
+  .brole {
+    color: var(--text-faint);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .boosts {
+    list-style: none;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .boosts li {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+  }
+  .bamt {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--uncommon);
+    min-width: 3.5ch;
+  }
+  .bstat {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .bbase {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .bbase b {
+    color: var(--text);
+    font-family: var(--font-mono);
   }
   .foot {
     display: flex;

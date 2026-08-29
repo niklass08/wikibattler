@@ -1,0 +1,758 @@
+<script lang="ts">
+  import { onDestroy } from 'svelte';
+  import { fade, fly } from 'svelte/transition';
+  import { collection } from '../lib/collection';
+  import { battleTeam } from '../lib/battle/team';
+  import {
+    assembleTeam,
+    simulate,
+    TEAM_SIZE,
+    MAX_MYTHIC,
+    type BattleResult
+  } from '../lib/battle/engine';
+  import { GOLDFISH } from '../lib/battle/opponents';
+  import { classifyCard, ROLE_META, type Role } from '../lib/battle/classify';
+  import { view } from '../stores/view';
+  import Card from './Card.svelte';
+  import { RARITIES, type Card as CardT, type Rarity } from '../lib/types';
+
+  type Phase = 'build' | 'fight';
+  let phase = $state<Phase>('build');
+
+  const owned = $derived(Object.values($collection).map((e) => e.card));
+  const byId = $derived(new Map(owned.map((c) => [c.id, c] as const)));
+  const roleOf = $derived(new Map(owned.map((c) => [c.id, classifyCard(c)] as const)));
+
+  // --- roster filtering / sorting -----------------------------------------
+  type RSort = 'power' | 'strength' | 'defence' | 'rarity' | 'recent' | 'name';
+  let rarityFilter = $state<Rarity | 'all'>('all');
+  let roleFilter = $state<'all' | Role>('all');
+  let rsort = $state<RSort>('power');
+
+  const initials = (t: string) =>
+    t
+      .replace(/\(.*?\)/g, '')
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? '')
+      .join('');
+
+  // stored ids → cards, in pick order, dropping anything no longer owned
+  const teamCards = $derived(
+    $battleTeam.map((id) => byId.get(id)).filter((c): c is CardT => !!c)
+  );
+  const team = $derived(assembleTeam(teamCards));
+  const slots = $derived(
+    Array.from({ length: TEAM_SIZE }, (_, i) => team.members[i] ?? null)
+  );
+  const mythicCount = $derived(teamCards.filter((c) => c.rarity === 'mythic').length);
+  const full = $derived(teamCards.length >= TEAM_SIZE);
+  // filtered + sorted; picked cards keep their place and just get the ring, so
+  // the grid never reshuffles under the cursor while you build
+  const roster = $derived(
+    owned
+      .filter((c) => rarityFilter === 'all' || c.rarity === rarityFilter)
+      .filter((c) => roleFilter === 'all' || roleOf.get(c.id) === roleFilter)
+      .sort((a, b) => {
+        if (rsort === 'name') return a.title.localeCompare(b.title);
+        if (rsort === 'strength') return b.strength - a.strength;
+        if (rsort === 'defence') return b.defence - a.defence;
+        if (rsort === 'rarity') {
+          const d = RARITIES.indexOf(b.rarity) - RARITIES.indexOf(a.rarity);
+          return d !== 0 ? d : a.title.localeCompare(b.title);
+        }
+        if (rsort === 'recent') {
+          const ta = $collection[a.id]?.firstOpenedAt ?? '';
+          const tb = $collection[b.id]?.firstOpenedAt ?? '';
+          return tb.localeCompare(ta);
+        }
+        return b.strength + b.defence - (a.strength + a.defence); // power
+      })
+  );
+
+  function blockedReason(card: CardT): string | null {
+    if ($battleTeam.includes(card.id)) return null;
+    if (full) return `Team is full (${TEAM_SIZE})`;
+    if (card.rarity === 'mythic' && mythicCount >= MAX_MYTHIC)
+      return `Only ${MAX_MYTHIC} mythic per team`;
+    return null;
+  }
+
+  function pick(card: CardT) {
+    if (!$battleTeam.includes(card.id) && blockedReason(card)) return;
+    battleTeam.toggle(card.id);
+  }
+
+  // --- fight playback -------------------------------------------------------
+  let result = $state<BattleResult | null>(null);
+  let shown = $state(0);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  function tick() {
+    if (!result || shown >= result.rounds.length) return;
+    shown += 1;
+    // read the opening rounds at a human pace, then accelerate through a grind
+    const delay = shown < 6 ? 800 : shown < 16 ? 360 : 130;
+    timer = setTimeout(tick, delay);
+  }
+
+  function startFight() {
+    if (teamCards.length === 0) return;
+    clearTimeout(timer);
+    result = simulate(team, GOLDFISH);
+    shown = 0;
+    phase = 'fight';
+    timer = setTimeout(tick, 350);
+  }
+
+  function skip() {
+    clearTimeout(timer);
+    if (result) shown = result.rounds.length;
+  }
+
+  function backToBuild() {
+    clearTimeout(timer);
+    phase = 'build';
+    result = null;
+    shown = 0;
+  }
+
+  onDestroy(() => clearTimeout(timer));
+
+  const curRound = $derived(result && shown > 0 ? result.rounds[shown - 1] : null);
+  const playerHp = $derived(curRound ? curRound.playerHp : team.maxHp);
+  const enemyHp = $derived(curRound ? curRound.enemyHp : GOLDFISH.maxHp);
+  const visibleRounds = $derived(result ? result.rounds.slice(0, shown) : []);
+  const done = $derived(!!result && shown >= result.rounds.length);
+
+  const pctPlayer = $derived(Math.max(0, Math.min(100, (playerHp / Math.max(1, team.maxHp)) * 100)));
+  const pctEnemy = $derived(
+    Math.max(0, Math.min(100, (enemyHp / Math.max(1, GOLDFISH.maxHp)) * 100))
+  );
+
+  let logEl = $state<HTMLElement>();
+  $effect(() => {
+    void visibleRounds.length;
+    logEl?.scrollTo({ top: logEl.scrollHeight, behavior: 'smooth' });
+  });
+</script>
+
+<section class="battle wrap">
+  {#if owned.length === 0}
+    <div class="empty">
+      <p>Open a pack first — you need cards to field a team.</p>
+      <button class="btn" onclick={() => view.set('open')}>Open a pack →</button>
+    </div>
+  {:else if phase === 'build'}
+    <header class="head">
+      <div>
+        <h1>Auto Battler <span class="beta mono">beta</span></h1>
+        <p class="sub">
+          Pick up to {TEAM_SIZE} cards ({MAX_MYTHIC} mythic max). Living cards — people, animals —
+          fight, adding their Strength to the team's swing. Everything else (films, countries,
+          concepts) sits on the field as terrain and lends a passive effect. Every card adds its
+          Defence to the shared HP pool.
+        </p>
+      </div>
+    </header>
+
+    <div class="sheet">
+      <div class="slots">
+        {#each slots as m, i (i)}
+          <button
+            class="slot {m ? `filled rarity-${m.card.rarity}` : ''}"
+            type="button"
+            disabled={!m}
+            onclick={() => m && battleTeam.remove(m.card.id)}
+            title={m ? `Remove ${m.card.title}` : 'Empty slot'}
+          >
+            {#if m}
+              {#if m.card.image}
+                <img class="art" src={m.card.image} alt="" loading="lazy" />
+              {:else}
+                <span class="ini">{initials(m.card.title)}</span>
+              {/if}
+              <span class="role" title={m.effect ? m.effect.name : ROLE_META.living.label}>
+                {m.effect ? m.effect.icon : ROLE_META.living.icon}
+              </span>
+              <span class="cap">{m.card.title}</span>
+            {:else}
+              <span class="plus">+</span>
+            {/if}
+          </button>
+        {/each}
+      </div>
+
+      <div class="stats">
+        <div class="stat"><b class="mono">{team.maxHp}</b><span>HP pool</span></div>
+        <div class="stat"><b class="mono">{team.attack}</b><span>attack / round</span></div>
+        <div class="stat">
+          <b class="mono">{team.livingCount}<span class="dim">/{teamCards.length}</span></b>
+          <span>fighters</span>
+        </div>
+      </div>
+
+      {#if team.abstractCount > 0}
+        <ul class="effects">
+          {#each team.members as m (m.card.id)}
+            {#if m.effect}
+              <li>
+                <span class="eicon">{m.effect.icon}</span>
+                <span class="ename">{m.effect.name}</span>
+                <span class="edetail">{m.effect.detail}</span>
+                <span class="efrom">— {m.card.title}</span>
+              </li>
+            {/if}
+          {/each}
+        </ul>
+      {/if}
+
+      <div class="actions">
+        {#if teamCards.length > 0}
+          <button class="btn btn--ghost" onclick={() => battleTeam.clear()}>Clear</button>
+        {/if}
+        <button class="btn" disabled={teamCards.length === 0} onclick={startFight}>
+          Fight the Goldfish →
+        </button>
+      </div>
+    </div>
+
+    <div class="filters">
+      <div class="chips">
+        <button class:on={rarityFilter === 'all'} onclick={() => (rarityFilter = 'all')}>All</button>
+        {#each RARITIES as r (r)}
+          <button
+            class="rarity-{r}"
+            class:on={rarityFilter === r}
+            onclick={() => (rarityFilter = r)}
+          >
+            {r}
+          </button>
+        {/each}
+      </div>
+      <div class="chips">
+        <button class:on={roleFilter === 'all'} onclick={() => (roleFilter = 'all')}>Any role</button>
+        <button class:on={roleFilter === 'living'} onclick={() => (roleFilter = 'living')}>
+          ⚔ Fighters
+        </button>
+        <button class:on={roleFilter === 'abstract'} onclick={() => (roleFilter = 'abstract')}>
+          ✦ Field
+        </button>
+      </div>
+      <label class="sort">
+        Sort
+        <select bind:value={rsort}>
+          <option value="power">Power</option>
+          <option value="strength">Strength</option>
+          <option value="defence">Defence</option>
+          <option value="rarity">Rarity</option>
+          <option value="recent">Recent</option>
+          <option value="name">Name</option>
+        </select>
+      </label>
+    </div>
+
+    {#if roster.length === 0}
+      <p class="none">No cards match these filters.</p>
+    {:else}
+      <div class="grid">
+        {#each roster as card (card.id)}
+          {@const picked = $battleTeam.includes(card.id)}
+          {@const blocked = blockedReason(card)}
+          <div class="pick" class:picked class:blocked={!!blocked} title={blocked ?? ''}>
+            <Card {card} onclick={() => pick(card)} dupCount={$collection[card.id]?.count ?? 1} />
+            {#if picked}<span class="flag">in team</span>{/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
+  {:else if result}
+    <div class="arena" in:fade={{ duration: 160 }}>
+      <div class="sides">
+        <div class="side enemy">
+          <div class="fish">🐟</div>
+          <h2>{GOLDFISH.name}</h2>
+          <p class="hp mono">{enemyHp} / {GOLDFISH.maxHp}</p>
+          <div class="bar"><span class="fill enemy" style="width:{pctEnemy}%"></span></div>
+          <p class="blurb">{GOLDFISH.blurb}</p>
+        </div>
+
+        <div class="vs mono">vs</div>
+
+        <div class="side you">
+          <div class="crest">
+            {#each team.members.slice(0, 7) as m (m.card.id)}
+              <span
+                class="chip rarity-{m.card.rarity}"
+                title={m.effect ? `${m.card.title} — ${m.effect.name}` : `${m.card.title} — ${ROLE_META.living.label}`}
+              >
+                {m.effect ? m.effect.icon : ROLE_META.living.icon}
+              </span>
+            {/each}
+          </div>
+          <h2>Your team</h2>
+          <p class="hp mono">{playerHp} / {team.maxHp}</p>
+          <div class="bar"><span class="fill you" style="width:{pctPlayer}%"></span></div>
+          <p class="blurb">{team.attack} attack · {team.livingCount} fighting · {team.abstractCount} on the field</p>
+        </div>
+      </div>
+
+      <div class="log" bind:this={logEl}>
+        {#each visibleRounds as r (r.n)}
+          <div class="round" in:fly={{ y: 8, duration: 200 }}>
+            <div class="rn mono">Round {r.n}</div>
+            {#each r.lines as line}
+              <p class="line {line.kind}">{line.text}</p>
+            {/each}
+          </div>
+        {/each}
+      </div>
+
+      <div class="ctl">
+        {#if !done}
+          <button class="btn btn--ghost" onclick={skip}>Skip ⏭</button>
+        {:else}
+          <span class="verdict {result.outcome}">
+            {result.outcome === 'win' ? 'Victory' : result.outcome === 'loss' ? 'Defeat' : 'Draw'}
+            · {result.damageDealt} dealt · {result.damageTaken} taken
+          </span>
+          <button class="btn btn--ghost" onclick={startFight}>Rematch</button>
+          <button class="btn" onclick={backToBuild}>Back to team</button>
+        {/if}
+      </div>
+    </div>
+  {/if}
+</section>
+
+<style>
+  .battle {
+    padding-block: clamp(28px, 6vh, 64px);
+  }
+  .empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding-block: 16vh;
+    color: var(--text-dim);
+  }
+
+  .head {
+    margin-bottom: 22px;
+  }
+  h1 {
+    font-size: clamp(26px, 4vw, 40px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+  }
+  .beta {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--mythic);
+    padding: 2px 5px;
+    border-radius: 5px;
+    vertical-align: middle;
+  }
+  .sub {
+    margin-top: 8px;
+    max-width: 68ch;
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* --- team sheet --- */
+  .sheet {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    padding: 18px;
+    margin-bottom: 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .slots {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+  }
+  @media (max-width: 620px) {
+    .slots {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  .slot {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-sm);
+    display: grid;
+    place-items: center;
+    padding: 6px;
+    color: var(--text-faint);
+    background: var(--surface-2);
+    overflow: hidden;
+    container-type: inline-size;
+  }
+  .slot.filled {
+    border-style: solid;
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .slot.filled:hover {
+    border-color: var(--accent);
+  }
+  .slot .art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .slot .ini {
+    font-size: clamp(16px, 6cqw, 22px);
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .slot .role {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    font-size: 10px;
+    line-height: 1;
+    padding: 2px 3px;
+    border-radius: 4px;
+    color: var(--text);
+    background: color-mix(in srgb, var(--bg) 62%, transparent);
+    backdrop-filter: blur(3px);
+  }
+  .slot .cap {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 14px 3px 3px;
+    font-size: 8.5px;
+    line-height: 1.15;
+    text-align: center;
+    color: var(--text);
+    background: linear-gradient(transparent, color-mix(in srgb, var(--bg) 90%, transparent) 60%);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .slot .plus {
+    font-size: 20px;
+  }
+
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 26px;
+    padding-block: 4px;
+    border-block: 1px solid var(--line);
+  }
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .stat b {
+    font-size: 22px;
+    color: var(--text);
+  }
+  .stat b .dim {
+    font-size: 14px;
+    color: var(--text-faint);
+  }
+  .stat span {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .effects {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    list-style: none;
+    font-size: 13px;
+  }
+  .effects li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: baseline;
+  }
+  .eicon {
+    font-size: 14px;
+  }
+  .ename {
+    font-weight: 600;
+    color: var(--uncommon);
+  }
+  .edetail {
+    color: var(--text-dim);
+  }
+  .efrom {
+    color: var(--text-faint);
+    font-size: 12px;
+  }
+
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px 16px;
+    margin-bottom: 22px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .chips button {
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    text-transform: capitalize;
+    color: var(--text-dim);
+    transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease),
+      background var(--dur) var(--ease);
+  }
+  .chips button:hover {
+    color: var(--text);
+  }
+  .chips button.on {
+    color: var(--text);
+    border-color: var(--accent, var(--text));
+    background: color-mix(in srgb, var(--accent, var(--text)) 14%, transparent);
+  }
+  .sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .sort select {
+    font: inherit;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 7px 10px;
+  }
+  .none {
+    color: var(--text-dim);
+    font-size: 14px;
+    text-align: center;
+    padding-block: 12vh;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: clamp(14px, 2vw, 24px);
+  }
+  .pick {
+    position: relative;
+    border-radius: var(--card-radius);
+    transition: transform var(--dur) var(--ease);
+  }
+  .pick.picked {
+    outline: 2px solid var(--accent, var(--rare));
+    outline-offset: 3px;
+    border-radius: var(--card-radius);
+  }
+  .pick.blocked {
+    opacity: 0.4;
+  }
+  .pick.blocked :global(.flipper) {
+    pointer-events: none;
+  }
+  .flag {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--accent, var(--rare));
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+
+  /* --- arena --- */
+  .arena {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .sides {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 16px;
+  }
+  @media (max-width: 620px) {
+    .sides {
+      grid-template-columns: 1fr;
+    }
+    .vs {
+      display: none;
+    }
+  }
+  .side {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    padding: 18px;
+    text-align: center;
+  }
+  .side h2 {
+    font-size: 17px;
+    font-weight: 700;
+    margin-top: 6px;
+  }
+  .fish {
+    font-size: 40px;
+    line-height: 1;
+  }
+  .crest {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    font-size: 11px;
+    border: 1px solid color-mix(in srgb, var(--accent, var(--text)) 45%, var(--line));
+    color: var(--accent, var(--text));
+  }
+  .hp {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+  .bar {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    transition: width 400ms var(--ease);
+  }
+  .fill.you {
+    background: var(--uncommon);
+  }
+  .fill.enemy {
+    background: var(--mythic-2);
+  }
+  .blurb {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-faint);
+    line-height: 1.5;
+  }
+  .vs {
+    font-size: 13px;
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+  }
+
+  .log {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    padding: 14px 16px;
+    max-height: 320px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .round {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .rn {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .line {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .line.you {
+    color: var(--uncommon);
+  }
+  .line.enemy {
+    color: var(--mythic-2);
+  }
+  .line.field {
+    color: var(--rare);
+  }
+  .line.result {
+    font-weight: 700;
+    color: var(--text);
+    margin-top: 2px;
+  }
+
+  .ctl {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    min-height: 44px;
+  }
+  .verdict {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+  }
+  .verdict.win {
+    color: var(--uncommon);
+  }
+  .verdict.loss {
+    color: var(--mythic-2);
+  }
+</style>
