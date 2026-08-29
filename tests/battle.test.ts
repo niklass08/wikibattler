@@ -5,8 +5,15 @@ import { classifyCard } from '../src/lib/battle/classify';
 import { assembleTeam, simulate, type TeamStats } from '../src/lib/battle/engine';
 import { GOLDFISH } from '../src/lib/battle/opponents';
 import { battleTeam } from '../src/lib/battle/team';
-import { effectFor, effectIdFor, resolveEffect, sumMods } from '../src/lib/battle/effects';
-import { EFFECTS, TAG_EFFECT } from '../src/lib/battle/effects.config';
+import {
+  effectFor,
+  effectIdFor,
+  resolveEffect,
+  sumMods,
+  roundEffectFor,
+  planRounds
+} from '../src/lib/battle/effects';
+import { EFFECTS, TAG_EFFECT, ROUND_EFFECTS } from '../src/lib/battle/effects.config';
 import {
   cardBattleStat,
   battleBreakdown,
@@ -40,6 +47,7 @@ const stats = (over: Partial<TeamStats>): TeamStats => ({
   regen: 0,
   reflect: 0,
   mods: { hpFlat: 0, hpPct: 0, atkFlat: 0, atkPct: 0, regen: 0, reflect: 0 },
+  roundPlan: { effects: [], dotStart: 0, dotRamp: 0, atkRampPct: 0, blooms: [], overdrives: [] },
   livingCount: 0,
   abstractCount: 0,
   ...over
@@ -129,11 +137,84 @@ describe('simulate vs the Goldfish', () => {
   });
 });
 
+describe('round effects', () => {
+  const plan = (over: Partial<ReturnType<typeof planRounds>>) => ({
+    effects: [],
+    dotStart: 0,
+    dotRamp: 0,
+    atkRampPct: 0,
+    blooms: [] as { delay: number; damage: number }[],
+    overdrives: [] as number[],
+    ...over
+  });
+
+  it('resolves each new theme to the right scheduled behaviour', () => {
+    expect(roundEffectFor(card({ tags: ['disease'], strength: 500 }))?.kind).toBe('dot');
+    expect(roundEffectFor(card({ tags: ['scientists'], strength: 500 }))?.kind).toBe('ramp');
+    expect(roundEffectFor(card({ tags: ['plants'], strength: 500 }))?.kind).toBe('bloom');
+    expect(roundEffectFor(card({ tags: ['vehicles'], strength: 500 }))?.kind).toBe('overdrive');
+    expect(roundEffectFor(card({ tags: ['war'] }))).toBeNull();
+  });
+
+  it('disease stacks its damage up round after round', () => {
+    // dotStart 20, dotRamp 20 -> rounds deal 20, 40, 60, 80, 100 ... to a 300 hp dummy
+    const r = simulate(stats({ maxHp: 5000, attack: 0, roundPlan: plan({ dotStart: 20, dotRamp: 20 }) }), {
+      id: 'x', name: 'Dummy', blurb: '', maxHp: 300, attack: 0
+    });
+    expect(r.outcome).toBe('win');
+    expect(r.rounds).toHaveLength(5); // 20+40+60+80+100 = 300
+    expect(r.damageDealt).toBe(300);
+  });
+
+  it('scientists ramp the team attack every round', () => {
+    // base 100, +50%/round -> r1 150, r2 200, r3 250 (cumulative 600) vs 550 hp
+    const r = simulate(
+      stats({ maxHp: 9000, attack: 100, roundPlan: plan({ atkRampPct: 0.5 }) }),
+      { id: 'x', name: 'Dummy', blurb: '', maxHp: 550, attack: 0 }
+    );
+    expect(r.outcome).toBe('win');
+    expect(r.rounds).toHaveLength(3);
+  });
+
+  it('a plant blooms only on its schedule', () => {
+    const r = simulate(
+      stats({ maxHp: 9000, attack: 0, roundPlan: plan({ blooms: [{ delay: 3, damage: 200 }] }) }),
+      { id: 'x', name: 'Dummy', blurb: '', maxHp: 350, attack: 0 }
+    );
+    // no damage rounds 1-2, 200 on round 3, 200 on round 6 -> dead round 6
+    expect(r.outcome).toBe('win');
+    expect(r.rounds).toHaveLength(6);
+  });
+
+  it('a charged vehicle grants an extra swing on its schedule', () => {
+    const r = simulate(
+      stats({ maxHp: 9000, attack: 100, roundPlan: plan({ overdrives: [2] }) }),
+      { id: 'x', name: 'Dummy', blurb: '', maxHp: 500, attack: 0 }
+    );
+    // r1: 100, r2: 100 + 100 overdrive = 300, r3: 100, r4: 300 -> 100+300+100+300=800; dead round 4
+    expect(r.outcome).toBe('win');
+    expect(r.rounds).toHaveLength(4);
+    expect(r.rounds[1].lines.some((l) => l.text.includes('Overdrive'))).toBe(true);
+  });
+
+  it('assembleTeam collects round effects across roles', () => {
+    const t = assembleTeam([
+      card({ id: 1, tags: ['disease'], strength: 400, extract: 'The plague was an epidemic.' }),
+      card({ id: 2, tags: ['scientists'], strength: 600, extract: 'She is a physicist.' })
+    ]);
+    expect(t.roundPlan.dotStart).toBeGreaterThan(0);
+    expect(t.roundPlan.atkRampPct).toBeGreaterThan(0);
+    expect(t.roundPlan.effects).toHaveLength(2);
+  });
+});
+
 describe('environmental effects config', () => {
-  it('maps every tag to a defined effect', () => {
+  it('every tag has either a static field effect or a round effect', () => {
     for (const tag of TAGS) {
-      expect(TAG_EFFECT[tag], tag).toBeDefined();
-      expect(EFFECTS[TAG_EFFECT[tag]], `${tag} -> ${TAG_EFFECT[tag]}`).toBeDefined();
+      const staticId = TAG_EFFECT[tag];
+      const hasStatic = staticId !== undefined && EFFECTS[staticId] !== undefined;
+      const hasRound = ROUND_EFFECTS[tag as keyof typeof ROUND_EFFECTS] !== undefined;
+      expect(hasStatic || hasRound, `${tag} has no effect`).toBe(true);
     }
   });
 

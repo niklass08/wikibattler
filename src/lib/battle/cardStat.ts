@@ -10,8 +10,17 @@
  */
 import type { Card } from '../types';
 import { classifyCard, ROLE_META } from './classify';
-import { effectFor } from './effects';
+import { effectFor, roundEffectFor, type ResolvedRoundEffect } from './effects';
 import type { FieldStat } from './effects.config';
+
+/** short value string for a round effect, for the card face */
+function roundValue(r: ResolvedRoundEffect): string {
+  if (r.dot) return `+${r.dot.start}/r`;
+  if (r.ramp) return `+${Math.round(r.ramp.pct * 100)}%/r`;
+  if (r.bloom) return `${r.bloom.damage}`;
+  if (r.overdrive) return '+1 turn';
+  return '';
+}
 
 export interface CardBattleStat {
   /** true = a living card that swings; false = a field card with a passive */
@@ -34,7 +43,22 @@ export const showsStrength = (card: Card): boolean => classifyCard(card) === 'li
 export const showsDefence = (card: Card): boolean => classifyCard(card) === 'abstract';
 
 export function cardBattleStat(card: Card): CardBattleStat {
-  if (classifyCard(card) === 'living') {
+  const fighter = classifyCard(card) === 'living';
+
+  // a scheduled theme ability (disease / scientists / plants / vehicles) is the
+  // most distinctive thing a card does — it takes the battle cell when present
+  const r = roundEffectFor(card);
+  if (r) {
+    return {
+      fighter,
+      icon: r.icon,
+      value: roundValue(r),
+      label: r.name,
+      hint: `${r.name} — ${r.detail}`
+    };
+  }
+
+  if (fighter) {
     return {
       fighter: true,
       icon: ROLE_META.living.icon,
@@ -75,6 +99,8 @@ export interface BattleBreakdown {
   boosts: StatBoost[];
   /** every card also adds this much to the team HP pool, from its Defence */
   hpFromDefence: number;
+  /** a scheduled theme ability that plays out over the rounds, if any */
+  schedule: { icon: string; name: string; detail: string } | null;
 }
 
 /** field stat → the words shown to the player */
@@ -92,13 +118,36 @@ function amountFor(stat: FieldStat, compact: string): string {
 }
 
 export function battleBreakdown(card: Card): BattleBreakdown {
-  if (classifyCard(card) === 'living') {
+  const fighter = classifyCard(card) === 'living';
+  const r = roundEffectFor(card);
+  const schedule = r ? { icon: r.icon, name: r.name, detail: r.detail } : null;
+
+  // fighters always add their Strength to Team Attack
+  const fighterBoost: StatBoost[] = fighter
+    ? [{ stat: 'Team Attack', amount: `+${card.strength}` }]
+    : [];
+
+  // a card with a scheduled ability — that ability is its identity; skip the
+  // static field effect (it isn't applied either, see assembleTeam)
+  if (r) {
+    return {
+      role: fighter ? 'Fighter' : 'Field',
+      icon: r.icon,
+      title: r.name,
+      boosts: fighterBoost,
+      hpFromDefence: card.defence,
+      schedule
+    };
+  }
+
+  if (fighter) {
     return {
       role: 'Fighter',
       icon: ROLE_META.living.icon,
       title: ROLE_META.living.label,
-      boosts: [{ stat: 'Team Attack', amount: `+${card.strength}` }],
-      hpFromDefence: card.defence
+      boosts: fighterBoost,
+      hpFromDefence: card.defence,
+      schedule: null
     };
   }
   const e = effectFor(card);
@@ -107,6 +156,7 @@ export function battleBreakdown(card: Card): BattleBreakdown {
     icon: e.icon,
     title: e.name,
     boosts: e.parts.map((p) => ({ stat: STAT_LABEL[p.stat], amount: amountFor(p.stat, p.compact) })),
-    hpFromDefence: card.defence
+    hpFromDefence: card.defence,
+    schedule: null
   };
 }

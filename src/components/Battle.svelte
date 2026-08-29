@@ -200,17 +200,29 @@
         </div>
       </div>
 
-      {#if team.abstractCount > 0}
+      {#if team.abstractCount > 0 || team.roundPlan.effects.length > 0}
         <ul class="effects">
           {#each team.members as m (m.card.id)}
             {#if m.effect}
               <li>
                 <span class="eicon">{m.effect.icon}</span>
-                <span class="ename">{m.effect.name}</span>
-                <span class="edetail">{m.effect.detail}</span>
-                <span class="efrom">— {m.card.title}</span>
+                <span class="etxt">
+                  <b class="ename">{m.effect.name}</b>
+                  <span class="edetail">{m.effect.detail}</span>
+                  <span class="efrom">— {m.card.title}</span>
+                </span>
               </li>
             {/if}
+          {/each}
+          {#each team.roundPlan.effects as e (e.from + e.tag)}
+            <li class="round">
+              <span class="eicon">{e.icon}</span>
+              <span class="etxt">
+                <b class="ename">{e.name}</b>
+                <span class="edetail">{e.detail}</span>
+                <span class="efrom">— {e.from}</span>
+              </span>
+            </li>
           {/each}
         </ul>
       {/if}
@@ -511,16 +523,25 @@
   }
   .effects li {
     display: flex;
-    flex-wrap: wrap;
     gap: 8px;
     align-items: baseline;
   }
   .eicon {
+    flex: none;
     font-size: 14px;
+    width: 1.1em;
+    text-align: center;
+  }
+  .etxt {
+    min-width: 0;
   }
   .ename {
     font-weight: 600;
     color: var(--uncommon);
+    margin-right: 6px;
+  }
+  .effects li.round .ename {
+    color: var(--rare);
   }
   .edetail {
     color: var(--text-dim);
@@ -528,6 +549,7 @@
   .efrom {
     color: var(--text-faint);
     font-size: 12px;
+    margin-left: 6px;
   }
 
   .actions {

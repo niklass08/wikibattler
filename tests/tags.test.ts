@@ -117,9 +117,9 @@ describe('deriveTags', () => {
     }
   });
 
-  it('returns at most 3 tags, all valid', () => {
+  it('returns at most 4 tags, all valid', () => {
     const tags = deriveTags(FIXTURES['Angela Merkel'].cats);
-    expect(tags.length).toBeLessThanOrEqual(3);
+    expect(tags.length).toBeLessThanOrEqual(4);
     for (const t of tags) expect(TAGS).toContain(t);
   });
 

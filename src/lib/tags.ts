@@ -20,7 +20,11 @@ export const TAGS = [
   'games',
   'nature',
   'business',
-  'religion'
+  'religion',
+  'plants',
+  'scientists',
+  'disease',
+  'vehicles'
 ] as const;
 
 export type Tag = (typeof TAGS)[number];
@@ -38,7 +42,11 @@ export const TAG_LABEL: Record<Tag, string> = {
   games: 'Games',
   nature: 'Nature',
   business: 'Business',
-  religion: 'Religion'
+  religion: 'Religion',
+  plants: 'Plants',
+  scientists: 'Scientists',
+  disease: 'Disease',
+  vehicles: 'Vehicles'
 };
 
 /** Categories that say nothing about the topic — dropped before matching. */
@@ -70,14 +78,22 @@ const RULES: Record<Tag, RegExp> = {
   business:
     /\b(compan|corporations?|businesses|brands?|economics?|economies|banks?|financial|entrepreneurs?|businesspeople|manufacturers?|industries|multinational|startups?|billionaires?|stock exchanges?|trade)\b/i,
   religion:
-    /\b(religio|christian|catholic|protestant|islam|muslim|hindu|buddhis|judais|jewish|churches|temples|mosques|cathedrals?|saints?|popes?|bishops?|clergy|theolog|mytholog|deities|gods?|goddess|monaster)\b/i
+    /\b(religio|christian|catholic|protestant|islam|muslim|hindu|buddhis|judais|jewish|churches|temples|mosques|cathedrals?|saints?|popes?|bishops?|clergy|theolog|mytholog|deities|gods?|goddess|monaster)\b/i,
+  plants:
+    /\b(flowering plants?|\bplants?\b|trees?|shrubs?|ferns?|mosses|orchids?|grasses|vines?|cacti|cactus|wildflowers?|conifers?|angiosperms?|gymnosperms?|edible plants?|medicinal plants?|crops?|\w{3,}aceae\b)\b/i,
+  scientists:
+    /\b(scientists?|physicists?|chemists?|biologists?|mathematicians?|astronomers?|researchers?|nobel laureates|inventors?|naturalists?|geologists?|neuroscientists?|computer scientists?|geneticists?|zoologists?|botanists?)\b/i,
+  disease:
+    /\b(diseases?|disorders?|syndromes?|infections?|infectious|viruses|viral|bacterial infections?|pathogens?|cancers?|carcinomas?|tumors?|epidemics?|pandemics?|plagues?|outbreaks?|illnesses|fevers?)\b/i,
+  vehicles:
+    /\b(vehicles?|automobiles?|\bcars?\b|trucks?|motorcycles?|aircraft|airplanes?|airliners?|helicopters?|\bships?\b|\bboats?\b|submarines?|locomotives?|\btrains?\b|spacecraft|rockets?|\btanks?\b|\bjets?\b|sedans?)\b/i
 };
 
 /**
  * Up to `max` themes for a card, most-supported first. Empty when nothing
  * matches confidently (a niche stub, say).
  */
-export function deriveTags(categories: string[], extract = '', max = 3): Tag[] {
+export function deriveTags(categories: string[], extract = '', max = 4): Tag[] {
   const cats = categories
     .map((c) => c.replace(/^Category:/, '').trim())
     .filter((c) => c && !CATEGORY_NOISE.test(c));

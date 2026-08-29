@@ -136,10 +136,12 @@ export const EFFECTS = {
 export type EffectId = keyof typeof EFFECTS;
 
 /**
- * Which effect each thematic tag plants. Every tag must appear. When a card
- * carries several tags, its strongest (first) mapped tag wins — see effects.ts.
+ * Which static field effect each thematic tag plants. Tags with a *round* effect
+ * (see ROUND_EFFECTS) are deliberately absent — those do their work per-round
+ * instead. When a card carries several tags, its strongest (first) mapped tag
+ * wins; an abstract card with none mapped falls back to DEFAULT_EFFECT.
  */
-export const TAG_EFFECT: Record<Tag, EffectId> = {
+export const TAG_EFFECT: Partial<Record<Tag, EffectId>> = {
   cinema: 'spectacle',
   music: 'anthem',
   sport: 'training',
@@ -157,3 +159,35 @@ export const TAG_EFFECT: Record<Tag, EffectId> = {
 
 /** Effect for an abstract card whose tags are all unmapped, or which has none. */
 export const DEFAULT_EFFECT: EffectId = 'landmark';
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ *  ROUND EFFECTS — themes that do something on a schedule during the fight,
+ *  rather than folding a flat modifier in up front. Any card carrying one of
+ *  these tags contributes the effect, whatever its battle role; multiple cards
+ *  of the same theme stack.
+ *
+ *   dot        deal escalating damage to the enemy every round
+ *              round r damage (per card) = damage + ramp·(r-1)   [+ perStrength·STR]
+ *   ramp       raise the team's attack by a fixed % every round (additive)
+ *   bloom      every `delay` rounds, deal a burst of damage       [+ perStrength·STR]
+ *   overdrive  every `delay` rounds, the team gets one extra attack that round
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+interface RoundEffectMeta {
+  name: string;
+  icon: string;
+}
+export type RoundEffectDef =
+  | (RoundEffectMeta & { kind: 'dot'; damage: number; ramp: number; perStrength: number })
+  | (RoundEffectMeta & { kind: 'ramp'; atkPctPerRound: number })
+  | (RoundEffectMeta & { kind: 'bloom'; delay: number; damage: number; perStrength: number })
+  | (RoundEffectMeta & { kind: 'overdrive'; delay: number });
+
+export const ROUND_EFFECTS = {
+  disease: { kind: 'dot', name: 'Contagion', icon: '🦠', damage: 5, ramp: 5, perStrength: 0.012 },
+  scientists: { kind: 'ramp', name: 'Breakthrough', icon: '🧪', atkPctPerRound: 0.05 },
+  plants: { kind: 'bloom', name: 'Bloom', icon: '🌱', delay: 3, damage: 55, perStrength: 0.14 },
+  vehicles: { kind: 'overdrive', name: 'Overdrive', icon: '🚗', delay: 4 }
+} as const satisfies Partial<Record<Tag, RoundEffectDef>>;
+
+export type RoundEffectTag = keyof typeof ROUND_EFFECTS;

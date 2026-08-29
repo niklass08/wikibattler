@@ -7,7 +7,16 @@
  */
 import type { Card } from '../types';
 import { classifyCard, type Role } from './classify';
-import { effectFor, sumMods, type FieldMods, type ResolvedEffect } from './effects';
+import {
+  effectFor,
+  planRounds,
+  roundEffectFor,
+  sumMods,
+  type FieldMods,
+  type ResolvedEffect,
+  type ResolvedRoundEffect,
+  type RoundPlan
+} from './effects';
 
 export const TEAM_SIZE = 7;
 export const MAX_MYTHIC = 1;
@@ -17,8 +26,10 @@ export const ROUND_CAP = 40;
 export interface TeamMember {
   card: Card;
   role: Role;
-  /** the environmental effect this card contributes, when abstract */
+  /** the static environmental effect this card contributes, when abstract */
   effect: ResolvedEffect | null;
+  /** the scheduled round effect this card contributes, from its theme (any role) */
+  round: ResolvedRoundEffect | null;
 }
 
 export interface TeamStats {
@@ -28,6 +39,7 @@ export interface TeamStats {
   regen: number;
   reflect: number;
   mods: FieldMods;
+  roundPlan: RoundPlan;
   livingCount: number;
   abstractCount: number;
 }
@@ -44,11 +56,18 @@ export interface Opponent {
 export function assembleTeam(cards: Card[]): TeamStats {
   const members: TeamMember[] = cards.map((card) => {
     const role = classifyCard(card);
-    return { card, role, effect: role === 'abstract' ? effectFor(card) : null };
+    const round = roundEffectFor(card);
+    // an abstract card gets its static field effect — unless it already brings a
+    // scheduled effect, in which case that IS its field presence
+    const effect = role === 'abstract' && !round ? effectFor(card) : null;
+    return { card, role, effect, round };
   });
 
   const mods = sumMods(
     members.map((m) => m.effect).filter((e): e is ResolvedEffect => e !== null)
+  );
+  const roundPlan = planRounds(
+    members.map((m) => m.round).filter((r): r is ResolvedRoundEffect => r !== null)
   );
 
   const baseHp = cards.reduce((n, c) => n + c.defence, 0);
@@ -66,6 +85,7 @@ export function assembleTeam(cards: Card[]): TeamStats {
     regen: mods.regen,
     reflect: mods.reflect,
     mods,
+    roundPlan,
     livingCount: members.filter((m) => m.role === 'living').length,
     abstractCount: members.filter((m) => m.role === 'abstract').length
   };
@@ -120,24 +140,68 @@ export function simulate(team: TeamStats, enemy: Opponent): BattleResult {
     return { outcome, rounds, damageDealt, damageTaken };
   };
 
+  const plan = team.roundPlan;
   const noFighters = team.attack <= 0;
+  let atkRamp = 0; // scientists — grows every round
 
   for (let n = 1; n <= ROUND_CAP; n++) {
     const lines: LogLine[] = [];
 
-    // your team swings first (unless it has nobody to swing)
-    if (noFighters) {
-      lines.push({ kind: 'you', text: 'No living card on the team — nothing swings.' });
-    } else {
-      const hit = team.attack;
-      enemyHp -= hit;
-      damageDealt += hit;
+    // scientists ramp the team's attack, a little more every round
+    if (plan.atkRampPct > 0) {
+      atkRamp += plan.atkRampPct;
       lines.push({
-        kind: 'you',
-        text: `Your team hits for ${hit}. ${enemy.name} ${clamp(enemyHp + hit)} → ${clamp(enemyHp)}.`
+        kind: 'field',
+        text: `🧪 Breakthrough — team attack now +${Math.round(atkRamp * 100)}%.`
       });
-      if (enemyHp <= 0) return end('win', n, lines);
     }
+    const hit = noFighters ? 0 : Math.round(team.attack * (1 + atkRamp));
+
+    // your team swings — once, plus one extra per charged vehicle
+    const swings = 1 + plan.overdrives.filter((d) => n % d === 0).length;
+    if (noFighters) {
+      lines.push({ kind: 'you', text: 'No fighter on the team — the swing is skipped.' });
+    } else {
+      for (let s = 0; s < swings; s++) {
+        enemyHp -= hit;
+        damageDealt += hit;
+        lines.push({
+          kind: s === 0 ? 'you' : 'field',
+          text:
+            s === 0
+              ? `Your team hits for ${hit}. ${enemy.name} ${clamp(enemyHp + hit)} → ${clamp(enemyHp)}.`
+              : `🚗 Overdrive — an extra strike for ${hit}. ${enemy.name} ${clamp(enemyHp + hit)} → ${clamp(enemyHp)}.`
+        });
+        if (enemyHp <= 0) return end('win', n, lines);
+      }
+    }
+
+    // disease festers, worse each round
+    if (plan.dotStart > 0 || plan.dotRamp > 0) {
+      const dot = plan.dotStart + plan.dotRamp * (n - 1);
+      if (dot > 0) {
+        enemyHp -= dot;
+        damageDealt += dot;
+        lines.push({
+          kind: 'field',
+          text: `🦠 Contagion festers for ${dot}. ${enemy.name} ${clamp(enemyHp + dot)} → ${clamp(enemyHp)}.`
+        });
+        if (enemyHp <= 0) return end('win', n, lines);
+      }
+    }
+
+    // plants that have finished charging bloom
+    for (const b of plan.blooms) {
+      if (n % b.delay === 0) {
+        enemyHp -= b.damage;
+        damageDealt += b.damage;
+        lines.push({
+          kind: 'field',
+          text: `🌱 Bloom — ${b.damage} damage. ${enemy.name} ${clamp(enemyHp + b.damage)} → ${clamp(enemyHp)}.`
+        });
+      }
+    }
+    if (enemyHp <= 0) return end('win', n, lines);
 
     // enemy answers
     const dmg = enemy.attack;

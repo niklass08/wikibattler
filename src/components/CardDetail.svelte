@@ -71,6 +71,12 @@
             <li><span class="bamt">{b.amount}</span><span class="bstat">{b.stat}</span></li>
           {/each}
         </ul>
+        {#if breakdown.schedule}
+          <p class="bsched">
+            <span class="bicon">{breakdown.schedule.icon}</span>
+            <b>{breakdown.schedule.name}</b> — {breakdown.schedule.detail}
+          </p>
+        {/if}
         <p class="bbase">
           Also <b>+{breakdown.hpFromDefence}</b> Team HP — like every card, from its Defence.
         </p>
@@ -269,6 +275,16 @@
     font-size: 13px;
     font-weight: 600;
     color: var(--text);
+  }
+  .bsched {
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--rare);
+    line-height: 1.5;
+  }
+  .bsched b {
+    color: var(--text);
+    font-weight: 600;
   }
   .bbase {
     margin-top: 10px;
