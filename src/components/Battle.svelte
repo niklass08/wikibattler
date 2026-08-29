@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { fade, fly } from 'svelte/transition';
-  import { collection } from '../lib/collection';
+  import { collection, favourites } from '../lib/collection';
   import { battleTeam } from '../lib/battle/team';
   import {
     assembleTeam,
@@ -29,7 +29,13 @@
   let roleFilter = $state<'all' | Role>('all');
   let rsort = $state<RSort>('power');
   let query = $state('');
+  let favOnly = $state(false);
   const q = $derived(query.trim().toLowerCase());
+  const favCount = $derived(owned.filter((c) => $favourites.has(c.id)).length);
+  // last favourite un-starred while the filter is on — drop back to the full grid
+  $effect(() => {
+    if (favCount === 0 && favOnly) favOnly = false;
+  });
 
   // stored ids → cards, in pick order, dropping anything no longer owned
   const teamCards = $derived(
@@ -46,6 +52,7 @@
   const roster = $derived(
     owned
       .filter((c) => !q || c.title.toLowerCase().includes(q))
+      .filter((c) => !favOnly || $favourites.has(c.id))
       .filter((c) => rarityFilter === 'all' || c.rarity === rarityFilter)
       .filter((c) => roleFilter === 'all' || roleOf.get(c.id) === roleFilter)
       // a stat sort only lists cards that actually show that stat
@@ -246,6 +253,16 @@
         <button class:on={roleFilter === 'abstract'} onclick={() => (roleFilter = 'abstract')}>
           ✦ Field
         </button>
+        {#if favCount > 0}
+          <button
+            class="fav"
+            class:on={favOnly}
+            aria-pressed={favOnly}
+            onclick={() => (favOnly = !favOnly)}
+          >
+            ★ Favourites <span class="mono">{favCount}</span>
+          </button>
+        {/if}
       </div>
       <label class="sort">
         Sort
@@ -551,6 +568,21 @@
     color: var(--text);
     border-color: var(--accent, var(--text));
     background: color-mix(in srgb, var(--accent, var(--text)) 14%, transparent);
+  }
+  .chips button.fav {
+    text-transform: none;
+  }
+  .chips button.fav .mono {
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+  .chips button.fav.on {
+    color: #f5c518;
+    border-color: color-mix(in srgb, #f5c518 55%, transparent);
+    background: color-mix(in srgb, #f5c518 14%, transparent);
+  }
+  .chips button.fav.on .mono {
+    color: color-mix(in srgb, #f5c518 80%, var(--text));
   }
   .sort {
     display: inline-flex;
