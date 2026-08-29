@@ -12,6 +12,7 @@
   } from '../lib/battle/engine';
   import { GOLDFISH } from '../lib/battle/opponents';
   import { classifyCard, ROLE_META, type Role } from '../lib/battle/classify';
+  import { TAG_LABEL, TAGS, type Tag } from '../lib/tags';
   import { view } from '../stores/view';
   import Card from './Card.svelte';
   import { RARITIES, type Card as CardT, type Rarity } from '../lib/types';
@@ -30,7 +31,16 @@
   let rsort = $state<RSort>('power');
   let query = $state('');
   let favOnly = $state(false);
+  let themeFilter = $state<Tag | 'all'>('all');
   const q = $derived(query.trim().toLowerCase());
+  // themes present across the roster, in canonical order — drives the theme row
+  const themesInUse = $derived(
+    (() => {
+      const seen = new Set<string>();
+      for (const c of owned) for (const t of c.tags ?? []) seen.add(t);
+      return TAGS.filter((t) => seen.has(t));
+    })()
+  );
   const favCount = $derived(owned.filter((c) => $favourites.has(c.id)).length);
   // last favourite un-starred while the filter is on — drop back to the full grid
   $effect(() => {
@@ -53,6 +63,7 @@
     owned
       .filter((c) => !q || c.title.toLowerCase().includes(q))
       .filter((c) => !favOnly || $favourites.has(c.id))
+      .filter((c) => themeFilter === 'all' || (c.tags ?? []).includes(themeFilter))
       .filter((c) => rarityFilter === 'all' || c.rarity === rarityFilter)
       .filter((c) => roleFilter === 'all' || roleOf.get(c.id) === roleFilter)
       // a stat sort only lists cards that actually show that stat
@@ -288,6 +299,22 @@
         </select>
       </label>
     </div>
+
+    {#if themesInUse.length > 0}
+      <div class="themes">
+        <button class:on={themeFilter === 'all'} onclick={() => (themeFilter = 'all')}>
+          All themes
+        </button>
+        {#each themesInUse as t (t)}
+          <button
+            class:on={themeFilter === t}
+            onclick={() => (themeFilter = themeFilter === t ? 'all' : t)}
+          >
+            {TAG_LABEL[t as Tag]}
+          </button>
+        {/each}
+      </div>
+    {/if}
 
     {#if roster.length === 0}
       <p class="none">No cards match these filters.</p>
@@ -645,6 +672,29 @@
     font-size: 14px;
     text-align: center;
     padding-block: 12vh;
+  }
+  .themes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: -8px 0 22px;
+  }
+  .themes button {
+    padding: 6px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--text-dim);
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease),
+      border-color var(--dur) var(--ease);
+  }
+  .themes button:hover {
+    color: var(--text);
+  }
+  .themes button.on {
+    color: var(--bg);
+    background: var(--text);
+    border-color: var(--text);
   }
 
   .grid {

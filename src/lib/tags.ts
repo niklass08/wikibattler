@@ -29,6 +29,14 @@ export const TAGS = [
 
 export type Tag = (typeof TAGS)[number];
 
+/**
+ * Bump whenever the theme rules change enough that already-tagged cards should
+ * be re-derived. The collection view re-sweeps every card once when it sees a
+ * newer rev than it last recorded. (1 = original 13 themes; 2 = + plants,
+ * scientists, disease, vehicles.)
+ */
+export const TAG_REV = 2;
+
 export const TAG_LABEL: Record<Tag, string> = {
   cinema: 'Cinema',
   music: 'Music',
