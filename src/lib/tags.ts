@@ -20,10 +20,22 @@ export const TAGS = [
   'games',
   'nature',
   'business',
-  'religion'
+  'religion',
+  'plants',
+  'scientists',
+  'disease',
+  'vehicles'
 ] as const;
 
 export type Tag = (typeof TAGS)[number];
+
+/**
+ * Bump whenever the theme rules change enough that already-tagged cards should
+ * be re-derived. The collection view re-sweeps every card once when it sees a
+ * newer rev than it last recorded. (1 = original 13 themes; 2 = + plants,
+ * scientists, disease, vehicles.)
+ */
+export const TAG_REV = 3;
 
 export const TAG_LABEL: Record<Tag, string> = {
   cinema: 'Cinema',
@@ -38,7 +50,11 @@ export const TAG_LABEL: Record<Tag, string> = {
   games: 'Games',
   nature: 'Nature',
   business: 'Business',
-  religion: 'Religion'
+  religion: 'Religion',
+  plants: 'Plants',
+  scientists: 'Scientists',
+  disease: 'Disease',
+  vehicles: 'Vehicles'
 };
 
 /** Categories that say nothing about the topic — dropped before matching. */
@@ -58,7 +74,7 @@ const RULES: Record<Tag, RegExp> = {
   history:
     /\b(history|historical|ancient|classical antiquity|medieval|middle ages|early modern|centur|empires?|dynast|kingdoms? of|\bBCE?\b|revolutions?|archaeolog|prehistor|colonial|1[0-9]{2}0s\b)\b/i,
   science:
-    /\b(physics|chemistry|chemical (elements?|compounds?)|biolog|mathemati|scientists?|astronom|astrophys|geolog|technolog|engineering|computing|medicine|diseases?|anatomy|theorems?|equations?|particles?|spacecraft|space missions?|nasa|inventions?|physicists?|chemists?|mathematicians?)\b/i,
+    /\b(physics|chemistry|chemical (elements?|compounds?|reactions?)|biology|biological|mathematics|astronomy|astrophysics|cosmology|geology|technology|engineering|computing|computer science|thermodynamics|quantum|relativity|evolution|genetics|neuroscience|scientific theor|theorems?|equations?|particles?|space missions?|nasa|inventions?)\b/i,
   geography:
     /\b(geography|cities|towns|villages|municipalities|countries|sovereign states?|rivers?|mountains?|volcano|lakes?|seas?|oceans?|islands?|deserts?|regions?|provinces?|states? of|capitals?|populated places|landmarks?|national parks?|world heritage sites?|districts?|counties)\b/i,
   arts:
@@ -70,14 +86,28 @@ const RULES: Record<Tag, RegExp> = {
   business:
     /\b(compan|corporations?|businesses|brands?|economics?|economies|banks?|financial|entrepreneurs?|businesspeople|manufacturers?|industries|multinational|startups?|billionaires?|stock exchanges?|trade)\b/i,
   religion:
-    /\b(religio|christian|catholic|protestant|islam|muslim|hindu|buddhis|judais|jewish|churches|temples|mosques|cathedrals?|saints?|popes?|bishops?|clergy|theolog|mytholog|deities|gods?|goddess|monaster)\b/i
+    /\b(religio|christian|catholic|protestant|islam|muslim|hindu|buddhis|judais|jewish|churches|temples|mosques|cathedrals?|saints?|popes?|bishops?|clergy|theolog|mytholog|deities|gods?|goddess|monaster)\b/i,
+  plants:
+    /\b(flowering plants?|\bplants?\b|trees?|shrubs?|ferns?|mosses|orchids?|grasses|vines?|cacti|cactus|wildflowers?|conifers?|angiosperms?|gymnosperms?|edible plants?|medicinal plants?|crops?|\w{3,}aceae\b)\b/i,
+  scientists:
+    /\b(scientists?|physicists?|chemists?|biologists?|mathematicians?|astronomers?|researchers?|nobel laureates in (physics|chemistry|medicine)|inventors?|naturalists?|geologists?|neuroscientists?|geneticists?|zoologists?|botanists?|microbiologists?|palaeontologists?|paleontologists?)\b/i,
+  disease:
+    /\b(diseases?|infectious diseases?|viral infections?|bacterial infections?|viruses|virology|pathogens?|cancers?|carcinomas?|tumou?rs?|leukaemias?|leukemias?|epidemics?|pandemics?|plagues?|influenza|malaria|tuberculosis|cholera|smallpox|measles|\bebola\b|hiv\/aids|hepatitis|parasitic diseases?)\b/i,
+  vehicles:
+    /\b(vehicles?|automobiles?|\bcars?\b|trucks?|motorcycles?|aircraft|airplanes?|airliners?|helicopters?|\bships?\b|\bboats?\b|submarines?|locomotives?|\btrains?\b|spacecraft|rockets?|\btanks?\b|\bjets?\b|sedans?)\b/i
 };
+
+/**
+ * "Specialist" battle themes — narrow enough that a single stray category hit
+ * shouldn't earn them as a secondary tag. See deriveTags below.
+ */
+const SPECIALIST = new Set<Tag>(['plants', 'scientists', 'disease', 'vehicles']);
 
 /**
  * Up to `max` themes for a card, most-supported first. Empty when nothing
  * matches confidently (a niche stub, say).
  */
-export function deriveTags(categories: string[], extract = '', max = 3): Tag[] {
+export function deriveTags(categories: string[], extract = '', max = 4): Tag[] {
   const cats = categories
     .map((c) => c.replace(/^Category:/, '').trim())
     .filter((c) => c && !CATEGORY_NOISE.test(c));
@@ -101,7 +131,14 @@ export function deriveTags(categories: string[], extract = '', max = 3): Tag[] {
   // like a baseball player's lone "…Korean War veterans" category.
   const top = scored[0].score;
   return scored
-    .filter((s, i) => i === 0 || s.score >= 4 || s.score >= top * 0.5)
+    .filter((s, i) => {
+      if (i === 0) return true;
+      if (!(s.score >= 4 || s.score >= top * 0.5)) return false;
+      // a "specialist" theme as a *secondary* needs real category support — not
+      // one stray hit like a film's "…due to the COVID-19 pandemic" category
+      if (SPECIALIST.has(s.tag)) return s.score >= 6;
+      return true;
+    })
     .slice(0, max)
     .map((s) => s.tag);
 }

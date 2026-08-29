@@ -79,3 +79,12 @@ export const NEGATE_CHANCE = FOIL_PACK_CHANCE / 10;
 
 /** Relative weights for foil tiers 1 / 2 / 3 whenever a foil is rolled. */
 export const FOIL_TIER_WEIGHTS: [number, number, number] = [0.62, 0.28, 0.1];
+
+// ── Mythic signatures (signature.ts) ─────────────────────────────────────────
+
+/**
+ * When a mythic is pulled it rolls one signature ability. This is the chance
+ * the roll is drawn from one of the card's own themes; otherwise it's uniform
+ * across all 17 themes.
+ */
+export const SIGNATURE_LEAN = 0.5;

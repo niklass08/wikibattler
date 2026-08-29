@@ -1,7 +1,7 @@
 <script lang="ts">
   import { collection, computeProgress, favourites, packsOpened } from '../lib/collection';
   import { RARITIES, type Rarity } from '../lib/types';
-  import { TAG_LABEL, TAGS, deriveTags, type Tag } from '../lib/tags';
+  import { TAG_LABEL, TAGS, TAG_REV, deriveTags, type Tag } from '../lib/tags';
   import { view } from '../stores/view';
   import { fetchCategories } from '../lib/wiki';
   import { showsStrength, showsDefence } from '../lib/battle/cardStat';
@@ -39,18 +39,40 @@
     })()
   );
 
-  // Backfill tags on cards pulled before the tag system, in a few batched calls.
+  // Backfill / refresh tags in a few batched calls: fill cards that have none,
+  // and re-derive every card once after a theme-rules bump (see TAG_REV).
+  const TAG_REV_KEY = 'wikitcg:tag-rev:v1';
+  const readRev = () => {
+    try {
+      return Number(localStorage.getItem(TAG_REV_KEY)) || 0;
+    } catch {
+      return 0;
+    }
+  };
+  let tagRev = $state(readRev());
   const sweptForTags = new Set<number>();
   let sweeping = false;
   $effect(() => {
-    const untagged = Object.values($collection)
-      .filter((e) => !sweptForTags.has(e.card.id) && !(e.card.tags?.length))
+    const stale = tagRev < TAG_REV;
+    const todo = Object.values($collection)
+      .filter((e) => !sweptForTags.has(e.card.id) && (stale || !e.card.tags?.length))
       .map((e) => e.card);
-    if (untagged.length === 0 || sweeping) return;
+    if (todo.length === 0) {
+      if (stale && !sweeping) {
+        try {
+          localStorage.setItem(TAG_REV_KEY, String(TAG_REV));
+        } catch {
+          /* private mode */
+        }
+        tagRev = TAG_REV;
+      }
+      return;
+    }
+    if (sweeping) return;
     sweeping = true;
     (async () => {
-      for (let i = 0; i < untagged.length; i += 12) {
-        const batch = untagged.slice(i, i + 12);
+      for (let i = 0; i < todo.length; i += 12) {
+        const batch = todo.slice(i, i + 12);
         const cats = await fetchCategories(batch.map((c) => c.title));
         for (const card of batch) {
           sweptForTags.add(card.id);

@@ -14,6 +14,7 @@ import type { Card, Rarity } from './types';
 import { RARITIES } from './types';
 import { generatePack, type RarityPools } from './pack';
 import { applyPackFoil } from './foil';
+import { applyMythicSignatures } from './signature';
 import { rarityFromViews } from './rarity';
 import * as wiki from './wiki';
 
@@ -162,6 +163,7 @@ function toStub(c: Candidate): Card {
     defence: 0,
     foil: 0,
     negated: false,
+    signature: null,
     tags: [],
     raw: { links: 0, bytes: c.page.bytes, monthlyViews: c.monthlyViews }
   };
@@ -207,7 +209,7 @@ export async function buildPack(): Promise<Card[]> {
     });
   }
 
-  return applyPackFoil(cards);
+  return applyMythicSignatures(applyPackFoil(cards));
 }
 
 /** Test hook — reset all session state. */

@@ -9,10 +9,13 @@ import type { Tag } from '../tags';
 import {
   DEFAULT_EFFECT,
   EFFECTS,
+  ROUND_EFFECTS,
   TAG_EFFECT,
   type Contribution,
   type EffectId,
-  type FieldStat
+  type FieldStat,
+  type RoundEffectDef,
+  type RoundEffectTag
 } from './effects.config';
 
 /** Running totals the effects fold into when a team is assembled. */
@@ -157,4 +160,112 @@ export function sumMods(effects: ResolvedEffect[]): FieldMods {
   }
   total.reflect = Math.min(REFLECT_CAP, total.reflect);
   return total;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ *  ROUND EFFECTS — resolved against one card, then aggregated into a plan the
+ *  simulation walks each round. See effects.config.ts for the numbers.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export interface ResolvedRoundEffect {
+  tag: RoundEffectTag;
+  kind: RoundEffectDef['kind'];
+  name: string;
+  icon: string;
+  /** one-line summary for the team sheet */
+  detail: string;
+  /** source card title */
+  from: string;
+  /** dot: first-round damage and how much more it adds each round */
+  dot?: { start: number; ramp: number };
+  /** ramp: fractional team-attack gain added every round */
+  ramp?: { pct: number };
+  /** bloom: every `delay` rounds, deal `damage` */
+  bloom?: { delay: number; damage: number };
+  /** overdrive: every `delay` rounds, one extra team attack */
+  overdrive?: { delay: number };
+}
+
+/**
+ * The scheduled effect a card brings. It has to be one of the card's two
+ * strongest themes (tags are score-sorted) — and deriveTags already refuses to
+ * hand a specialist theme like `disease` a *secondary* slot on a single stray
+ * category hit — so a film with one "…COVID-19 pandemic" category stays a film.
+ */
+export function roundEffectFor(card: Card): ResolvedRoundEffect | null {
+  for (const tag of (card.tags ?? []).slice(0, 2) as RoundEffectTag[]) {
+    const def = ROUND_EFFECTS[tag];
+    if (def) return resolveRoundEffect(tag, def, card);
+  }
+  return null;
+}
+
+function resolveRoundEffect(
+  tag: RoundEffectTag,
+  def: RoundEffectDef,
+  card: Card
+): ResolvedRoundEffect {
+  const base = { tag, kind: def.kind, name: def.name, icon: def.icon, from: card.title };
+  switch (def.kind) {
+    case 'dot': {
+      const start = Math.round(def.damage + def.perStrength * card.strength);
+      const ramp = Math.round(def.ramp + def.perStrength * card.strength);
+      return { ...base, dot: { start, ramp }, detail: `${start} damage/round, +${ramp} each round` };
+    }
+    case 'ramp':
+      return {
+        ...base,
+        ramp: { pct: def.atkPctPerRound },
+        detail: `+${pct(def.atkPctPerRound)} team attack every round`
+      };
+    case 'bloom': {
+      const damage = Math.round(def.damage + def.perStrength * card.strength);
+      return {
+        ...base,
+        bloom: { delay: def.delay, damage },
+        detail: `blooms every ${def.delay} rounds for ${damage} damage`
+      };
+    }
+    case 'overdrive':
+      return {
+        ...base,
+        overdrive: { delay: def.delay },
+        detail: `an extra team attack every ${def.delay} rounds`
+      };
+  }
+}
+
+/** Everything the simulation needs to run the round effects, aggregated. */
+export interface RoundPlan {
+  effects: ResolvedRoundEffect[];
+  /** disease: total first-round damage and total per-round ramp */
+  dotStart: number;
+  dotRamp: number;
+  /** scientists: total fractional team-attack gain per round */
+  atkRampPct: number;
+  /** plants: one entry per bloom source */
+  blooms: { delay: number; damage: number }[];
+  /** vehicles: one delay per overdrive source */
+  overdrives: number[];
+}
+
+export function planRounds(effects: ResolvedRoundEffect[]): RoundPlan {
+  const plan: RoundPlan = {
+    effects,
+    dotStart: 0,
+    dotRamp: 0,
+    atkRampPct: 0,
+    blooms: [],
+    overdrives: []
+  };
+  for (const e of effects) {
+    if (e.dot) {
+      plan.dotStart += e.dot.start;
+      plan.dotRamp += e.dot.ramp;
+    }
+    if (e.ramp) plan.atkRampPct += e.ramp.pct;
+    if (e.bloom) plan.blooms.push(e.bloom);
+    if (e.overdrive) plan.overdrives.push(e.overdrive.delay);
+  }
+  return plan;
 }

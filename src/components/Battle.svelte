@@ -12,6 +12,7 @@
   } from '../lib/battle/engine';
   import { GOLDFISH } from '../lib/battle/opponents';
   import { classifyCard, ROLE_META, type Role } from '../lib/battle/classify';
+  import { TAG_LABEL, TAGS, type Tag } from '../lib/tags';
   import { view } from '../stores/view';
   import Card from './Card.svelte';
   import { RARITIES, type Card as CardT, type Rarity } from '../lib/types';
@@ -30,7 +31,16 @@
   let rsort = $state<RSort>('power');
   let query = $state('');
   let favOnly = $state(false);
+  let themeFilter = $state<Tag | 'all'>('all');
   const q = $derived(query.trim().toLowerCase());
+  // themes present across the roster, in canonical order — drives the theme row
+  const themesInUse = $derived(
+    (() => {
+      const seen = new Set<string>();
+      for (const c of owned) for (const t of c.tags ?? []) seen.add(t);
+      return TAGS.filter((t) => seen.has(t));
+    })()
+  );
   const favCount = $derived(owned.filter((c) => $favourites.has(c.id)).length);
   // last favourite un-starred while the filter is on — drop back to the full grid
   $effect(() => {
@@ -53,6 +63,7 @@
     owned
       .filter((c) => !q || c.title.toLowerCase().includes(q))
       .filter((c) => !favOnly || $favourites.has(c.id))
+      .filter((c) => themeFilter === 'all' || (c.tags ?? []).includes(themeFilter))
       .filter((c) => rarityFilter === 'all' || c.rarity === rarityFilter)
       .filter((c) => roleFilter === 'all' || roleOf.get(c.id) === roleFilter)
       // a stat sort only lists cards that actually show that stat
@@ -200,17 +211,39 @@
         </div>
       </div>
 
-      {#if team.abstractCount > 0}
+      {#if team.abstractCount > 0 || team.roundPlan.effects.length > 0 || team.signatures.length > 0}
         <ul class="effects">
           {#each team.members as m (m.card.id)}
             {#if m.effect}
               <li>
                 <span class="eicon">{m.effect.icon}</span>
-                <span class="ename">{m.effect.name}</span>
-                <span class="edetail">{m.effect.detail}</span>
-                <span class="efrom">— {m.card.title}</span>
+                <span class="etxt">
+                  <b class="ename">{m.effect.name}</b>
+                  <span class="edetail">{m.effect.detail}</span>
+                  <span class="efrom">— {m.card.title}</span>
+                </span>
               </li>
             {/if}
+          {/each}
+          {#each team.roundPlan.effects as e (e.from + e.tag)}
+            <li class="round">
+              <span class="eicon">{e.icon}</span>
+              <span class="etxt">
+                <b class="ename">{e.name}</b>
+                <span class="edetail">{e.detail}</span>
+                <span class="efrom">— {e.from}</span>
+              </span>
+            </li>
+          {/each}
+          {#each team.signatures as s (s.from + s.theme)}
+            <li class="sig">
+              <span class="eicon">★</span>
+              <span class="etxt">
+                <b class="ename">{s.name}</b>
+                <span class="edetail">{s.detail}{s.count > 1 ? ` (N=${s.count})` : ''}</span>
+                <span class="efrom">— {s.from}</span>
+              </span>
+            </li>
           {/each}
         </ul>
       {/if}
@@ -276,6 +309,22 @@
         </select>
       </label>
     </div>
+
+    {#if themesInUse.length > 0}
+      <div class="themes">
+        <button class:on={themeFilter === 'all'} onclick={() => (themeFilter = 'all')}>
+          All themes
+        </button>
+        {#each themesInUse as t (t)}
+          <button
+            class:on={themeFilter === t}
+            onclick={() => (themeFilter = themeFilter === t ? 'all' : t)}
+          >
+            {TAG_LABEL[t as Tag]}
+          </button>
+        {/each}
+      </div>
+    {/if}
 
     {#if roster.length === 0}
       <p class="none">No cards match these filters.</p>
@@ -511,16 +560,32 @@
   }
   .effects li {
     display: flex;
-    flex-wrap: wrap;
     gap: 8px;
     align-items: baseline;
   }
   .eicon {
+    flex: none;
     font-size: 14px;
+    width: 1.1em;
+    text-align: center;
+  }
+  .etxt {
+    min-width: 0;
   }
   .ename {
     font-weight: 600;
     color: var(--uncommon);
+    margin-right: 6px;
+  }
+  .effects li.round .ename {
+    color: var(--rare);
+  }
+  .effects li.sig .ename,
+  .effects li.sig .eicon {
+    color: var(--mythic-2);
+  }
+  .effects li.sig .ename {
+    font-weight: 700;
   }
   .edetail {
     color: var(--text-dim);
@@ -528,6 +593,7 @@
   .efrom {
     color: var(--text-faint);
     font-size: 12px;
+    margin-left: 6px;
   }
 
   .actions {
@@ -623,6 +689,29 @@
     font-size: 14px;
     text-align: center;
     padding-block: 12vh;
+  }
+  .themes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: -8px 0 22px;
+  }
+  .themes button {
+    padding: 6px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--text-dim);
+    transition: color var(--dur) var(--ease), background var(--dur) var(--ease),
+      border-color var(--dur) var(--ease);
+  }
+  .themes button:hover {
+    color: var(--text);
+  }
+  .themes button.on {
+    color: var(--bg);
+    background: var(--text);
+    border-color: var(--text);
   }
 
   .grid {

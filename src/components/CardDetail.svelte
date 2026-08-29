@@ -4,6 +4,7 @@
   import { STAT_MAX } from '../lib/rarity';
   import { TAG_LABEL, type Tag } from '../lib/tags';
   import { battleBreakdown } from '../lib/battle/cardStat';
+  import { cardSignature } from '../lib/battle/signatures';
   import Card from './Card.svelte';
   import RarityBadge from './RarityBadge.svelte';
   import { collection, favourites } from '../lib/collection';
@@ -13,6 +14,7 @@
   const count = $derived($collection[card.id]?.count ?? 0);
   const isFav = $derived($favourites.has(card.id));
   const breakdown = $derived(battleBreakdown(card));
+  const signature = $derived(cardSignature(card));
 
   function onkey(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose();
@@ -71,10 +73,23 @@
             <li><span class="bamt">{b.amount}</span><span class="bstat">{b.stat}</span></li>
           {/each}
         </ul>
+        {#if breakdown.schedule}
+          <p class="bsched">
+            <span class="bicon">{breakdown.schedule.icon}</span>
+            <b>{breakdown.schedule.name}</b> — {breakdown.schedule.detail}
+          </p>
+        {/if}
         <p class="bbase">
           Also <b>+{breakdown.hpFromDefence}</b> Team HP — like every card, from its Defence.
         </p>
       </section>
+
+      {#if signature}
+        <section class="sig">
+          <p class="shead"><span class="sstar">★</span> Signature — <b>{signature.name}</b></p>
+          <p class="sbody">{signature.blurb}</p>
+        </section>
+      {/if}
 
       <div class="foot">
         <button
@@ -270,6 +285,16 @@
     font-weight: 600;
     color: var(--text);
   }
+  .bsched {
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--rare);
+    line-height: 1.5;
+  }
+  .bsched b {
+    color: var(--text);
+    font-weight: 600;
+  }
   .bbase {
     margin-top: 10px;
     font-size: 12px;
@@ -279,6 +304,30 @@
   .bbase b {
     color: var(--text);
     font-family: var(--font-mono);
+  }
+  .sig {
+    margin-top: 12px;
+    padding: 14px;
+    border: 1px solid color-mix(in srgb, var(--mythic-2) 40%, var(--line));
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--mythic-2) 8%, var(--surface-2));
+  }
+  .shead {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .shead b {
+    color: var(--mythic-2);
+    font-weight: 700;
+  }
+  .sstar {
+    color: var(--mythic-2);
+  }
+  .sbody {
+    margin-top: 5px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-dim);
   }
   .foot {
     display: flex;

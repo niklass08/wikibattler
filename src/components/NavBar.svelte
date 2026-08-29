@@ -22,6 +22,9 @@
           Battle <span class="tag mono">beta</span>
         </button>
       {/if}
+      <button class="help" class:active={$view === 'help'} onclick={() => view.set('help')}>
+        Help
+      </button>
     </nav>
   </div>
 </header>
@@ -74,6 +77,13 @@
   .count {
     font-size: 12px;
     color: var(--text-faint);
+  }
+  nav button.help {
+    color: var(--text-faint);
+  }
+  nav button.help:hover,
+  nav button.help.active {
+    color: var(--text);
   }
   .tag {
     font-size: 9px;
