@@ -36,6 +36,8 @@
   --card-radius: 12px;
   --pad: clamp(20px, 4vw, 60px);
   --maxw: 1500px;
+  --nav-h: 69px; /* 68px bar + 1px border */
+  --footer-h: 60px;
 
   /* type */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;

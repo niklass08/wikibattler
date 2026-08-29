@@ -21,10 +21,13 @@
 
 <style>
   main {
-    min-height: calc(100dvh - 68px - 64px);
+    min-height: calc(100dvh - var(--nav-h) - var(--footer-h));
   }
   footer {
-    padding-block: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: var(--footer-h);
     color: var(--text-faint);
     font-size: 12px;
     text-align: center;

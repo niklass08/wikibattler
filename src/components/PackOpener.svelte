@@ -93,7 +93,7 @@
   }
 </script>
 
-<section class="opener wrap" bind:this={sectionEl}>
+<section class="opener wrap" class:solo={!hasPack} bind:this={sectionEl}>
   {#if !hasPack && !pendingOpen && !$queueStatus.error}
     <div class="idle" in:scale={{ duration: 300, start: 0.94 }}>
       <button class="deck deck--open" type="button" onclick={openPack} aria-label="Open pack">
@@ -222,7 +222,15 @@
 
 <style>
   .opener {
-    padding-block: clamp(40px, 10vh, 110px);
+    padding-block: clamp(28px, 6vh, 72px);
+  }
+  /* the pre-reveal screen (open / building / error) sits on exactly one
+     viewport — no scroll — with its content optically centred */
+  .opener.solo {
+    display: grid;
+    place-items: center;
+    min-height: calc(100dvh - var(--nav-h) - var(--footer-h));
+    padding-block: clamp(12px, 3vh, 32px);
   }
   .idle,
   .waiting {
@@ -230,7 +238,7 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 18px;
+    gap: clamp(10px, 1.8vh, 18px);
   }
   .waiting .deck {
     animation: deck-pulse 1.5s ease-in-out infinite;
@@ -243,9 +251,9 @@
   }
   .deck {
     position: relative;
-    width: 176px;
-    height: 246px;
-    margin-bottom: 18px;
+    width: clamp(136px, 20vh, 168px);
+    aspect-ratio: 2.5 / 3.5;
+    margin-bottom: 6px;
     container-type: inline-size;
   }
   .deck--open {
@@ -284,14 +292,14 @@
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
   }
   h1 {
-    font-size: clamp(30px, 5vw, 44px);
+    font-size: clamp(26px, 4vw, 40px);
     font-weight: 700;
     letter-spacing: -0.03em;
   }
   .sub {
     color: var(--text-dim);
     max-width: 46ch;
-    font-size: 16px;
+    font-size: 15px;
   }
   .tally {
     color: var(--text-faint);
