@@ -5,6 +5,7 @@ import { RARITIES } from './types';
 // v2: entries carry the full card — there is no static pool to look it up in.
 const COLLECTION_KEY = 'wikitcg:collection:v2';
 const PACKS_KEY = 'wikitcg:packs-opened:v1';
+const FAVOURITES_KEY = 'wikitcg:favourites:v1';
 
 function safeGet(key: string): string | null {
   try {
@@ -41,6 +42,18 @@ function loadCollection(): Collection {
     return clean;
   } catch {
     return {};
+  }
+}
+
+function loadFavourites(): Set<number> {
+  const raw = safeGet(FAVOURITES_KEY);
+  if (!raw) return new Set();
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((n): n is number => typeof n === 'number'));
+  } catch {
+    return new Set();
   }
 }
 
@@ -125,8 +138,35 @@ function createPacksOpened() {
   };
 }
 
+/**
+ * Starred cards, by id. A thin flag kept alongside the collection rather than on
+ * the card itself — card data is refreshed on every re-pull, favourites are the
+ * player's own and outlive that.
+ */
+function createFavourites() {
+  const { subscribe, set, update } = writable<Set<number>>(loadFavourites());
+
+  return {
+    subscribe,
+    /** Star or un-star a card. */
+    toggle(id: number) {
+      update((favs) => {
+        const next = new Set(favs);
+        if (!next.delete(id)) next.add(id);
+        safeSet(FAVOURITES_KEY, JSON.stringify([...next]));
+        return next;
+      });
+    },
+    reset() {
+      set(new Set());
+      safeSet(FAVOURITES_KEY, JSON.stringify([]));
+    }
+  };
+}
+
 export const collection = createCollection();
 export const packsOpened = createPacksOpened();
+export const favourites = createFavourites();
 
 export interface RarityCount {
   rarity: Rarity;

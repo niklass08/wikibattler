@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { collection, computeProgress, packsOpened } from '../lib/collection';
+  import { collection, computeProgress, favourites, packsOpened } from '../lib/collection';
   import { RARITIES, type Rarity } from '../lib/types';
   import { TAG_LABEL, TAGS, deriveTags, type Tag } from '../lib/tags';
   import { view } from '../stores/view';
@@ -12,12 +12,19 @@
 
   let rarityFilter = $state<Rarity | 'all'>('all');
   let tagFilter = $state<Tag | 'all'>('all');
+  let favOnly = $state(false);
   let sort = $state<Sort>('recent');
   let detail = $state<CardT | null>(null);
 
   const progress = $derived(computeProgress($collection));
 
   const owned = $derived(Object.values($collection).map((e) => e.card));
+
+  const favCount = $derived(owned.filter((c) => $favourites.has(c.id)).length);
+  // last favourite un-starred while the filter was on — drop back to the full grid
+  $effect(() => {
+    if (favCount === 0 && favOnly) favOnly = false;
+  });
 
   // tags present in the collection, in canonical order — drives the filter row
   const tagsInUse = $derived(
@@ -53,6 +60,7 @@
 
   const shown = $derived(
     owned
+      .filter((c) => !favOnly || $favourites.has(c.id))
       .filter((c) => rarityFilter === 'all' || c.rarity === rarityFilter)
       .filter((c) => tagFilter === 'all' || (c.tags ?? []).includes(tagFilter))
       .sort((a, b) => {
@@ -118,6 +126,16 @@
             {r}
           </button>
         {/each}
+        {#if favCount > 0}
+          <button
+            class="fav"
+            class:on={favOnly}
+            aria-pressed={favOnly}
+            onclick={() => (favOnly = !favOnly)}
+          >
+            ★ Favourites <span class="mono">{favCount}</span>
+          </button>
+        {/if}
       </div>
       <label class="sort">
         Sort
@@ -144,16 +162,21 @@
       </div>
     {/if}
 
-    <div class="grid">
-      {#each shown as card (card.id)}
-        <Card
-          {card}
-          dupCount={$collection[card.id]?.count ?? 1}
-          onclick={() => (detail = card)}
-          onResolveImage={(url) => collection.setImage(card.id, url)}
-        />
-      {/each}
-    </div>
+    {#if shown.length === 0}
+      <p class="none">No cards match these filters.</p>
+    {:else}
+      <div class="grid">
+        {#each shown as card (card.id)}
+          <Card
+            {card}
+            dupCount={$collection[card.id]?.count ?? 1}
+            favourite={$favourites.has(card.id)}
+            onclick={() => (detail = card)}
+            onResolveImage={(url) => collection.setImage(card.id, url)}
+          />
+        {/each}
+      </div>
+    {/if}
   {/if}
 </section>
 
@@ -254,6 +277,28 @@
     color: var(--text);
     border-color: var(--accent, var(--text));
     background: color-mix(in srgb, var(--accent, var(--text)) 14%, transparent);
+  }
+  .chips button.fav {
+    margin-left: 6px;
+    text-transform: none;
+  }
+  .chips button.fav .mono {
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+  .chips button.fav.on {
+    color: #f5c518;
+    border-color: color-mix(in srgb, #f5c518 55%, transparent);
+    background: color-mix(in srgb, #f5c518 14%, transparent);
+  }
+  .chips button.fav.on .mono {
+    color: color-mix(in srgb, #f5c518 80%, var(--text));
+  }
+  .none {
+    color: var(--text-dim);
+    font-size: 14px;
+    padding-block: 12vh;
+    text-align: center;
   }
   .tags {
     display: flex;

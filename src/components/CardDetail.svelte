@@ -4,11 +4,12 @@
   import { TAG_LABEL, type Tag } from '../lib/tags';
   import Card from './Card.svelte';
   import RarityBadge from './RarityBadge.svelte';
-  import { collection } from '../lib/collection';
+  import { collection, favourites } from '../lib/collection';
 
   let { card, onclose }: { card: CardT; onclose: () => void } = $props();
 
   const count = $derived($collection[card.id]?.count ?? 0);
+  const isFav = $derived($favourites.has(card.id));
 
   function onkey(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose();
@@ -55,6 +56,14 @@
       </dl>
 
       <div class="foot">
+        <button
+          class="btn btn--ghost fav"
+          class:on={isFav}
+          aria-pressed={isFav}
+          onclick={() => favourites.toggle(card.id)}
+        >
+          {isFav ? '★ Favourited' : '☆ Favourite'}
+        </button>
         <a class="btn btn--ghost" href={card.url} target="_blank" rel="noopener noreferrer">
           Read on Wikipedia ↗
         </a>
@@ -188,6 +197,13 @@
     flex: 1;
     font-size: 14px;
     padding: 12px 16px;
+  }
+  .foot .fav {
+    flex: 0 0 auto;
+  }
+  .foot .fav.on {
+    color: #f5c518;
+    border-color: color-mix(in srgb, #f5c518 55%, transparent);
   }
 
   @media (max-width: 620px) {

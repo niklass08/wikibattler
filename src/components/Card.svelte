@@ -10,6 +10,7 @@
     faceDown = false,
     dupCount = 0,
     isNew = false,
+    favourite = false,
     onclick,
     onResolveImage
   }: {
@@ -17,6 +18,8 @@
     faceDown?: boolean;
     dupCount?: number;
     isNew?: boolean;
+    /** Show the star mark — the card is in the player's favourites. */
+    favourite?: boolean;
     onclick?: () => void;
     /** Called with a backup art URL found for a card that had none. */
     onResolveImage?: (url: string) => void;
@@ -96,6 +99,7 @@
               aria-hidden="true">{RARITY_GLYPH[card.rarity]}</span>
             {#if isNew}<span class="new">NEW</span>{/if}
             {#if dupCount > 1}<span class="dup mono" class:stacked={isNew}>×{dupCount}</span>{/if}
+            {#if favourite}<span class="fav" title="Favourite" aria-hidden="true">★</span>{/if}
           {/if}
         </div>
 
@@ -266,6 +270,18 @@
   }
   .dup.stacked {
     top: 30px;
+  }
+  .fav {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    font-size: 12px;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 5px;
+    color: #f5c518;
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    backdrop-filter: blur(4px);
   }
   .glyph {
     left: 8px;
