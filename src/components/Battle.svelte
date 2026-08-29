@@ -160,19 +160,23 @@
       <div class="slots">
         {#each slots as m, i (i)}
           {#if m}
-            <div class="slot filled" title="Remove {m.card.title}">
-              <Card
-                card={m.card}
-                onResolveImage={(url) => collection.setImage(m.card.id, url)}
-                onclick={() => battleTeam.remove(m.card.id)}
-              />
+            <div class="slot" title="Remove {m.card.title}">
+              <div class="frame">
+                <Card
+                  card={m.card}
+                  onResolveImage={(url) => collection.setImage(m.card.id, url)}
+                  onclick={() => battleTeam.remove(m.card.id)}
+                />
+              </div>
               <span class="role" title={m.effect ? m.effect.name : ROLE_META.living.label}>
                 {m.effect ? m.effect.icon : ROLE_META.living.icon}
               </span>
               <span class="drop">remove</span>
             </div>
           {:else}
-            <div class="slot empty"><div class="ph"><span class="plus">+</span></div></div>
+            <div class="slot">
+              <div class="frame ph"><span class="plus">+</span></div>
+            </div>
           {/if}
         {/each}
       </div>
@@ -371,8 +375,7 @@
   }
   .slots {
     display: grid;
-    /* minmax(0,…) forces 7 equal columns regardless of their content, so an
-       empty slot is exactly the width (and thus height) of a card slot */
+    /* minmax(0,…) forces 7 equal columns regardless of their content */
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: clamp(6px, 1vw, 12px);
     align-items: start;
@@ -384,17 +387,22 @@
   }
   .slot {
     position: relative;
+    min-width: 0;
   }
-  /* the real Card renders here — foil layers, negated inversion and all. Its
-     own .flipper (aspect-ratio 2.5/3.5) sets the height. */
-  .slot :global(.card) {
-    width: 100%;
-  }
-  /* the placeholder mirrors that aspect-ratio on an inner box, so an empty slot
-     is exactly a card tall — never stretched to the grid row */
-  .slot .ph {
+  /* every slot — filled or empty — is a .frame: one card's worth of space. The
+     card / placeholder is absolutely fitted inside it, so the two can never
+     disagree on height. */
+  .frame {
+    position: relative;
     width: 100%;
     aspect-ratio: 2.5 / 3.5;
+  }
+  .frame :global(.card) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+  }
+  .frame.ph {
     display: grid;
     place-items: center;
     border: 1px dashed var(--line);
