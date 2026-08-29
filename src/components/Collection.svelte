@@ -181,13 +181,15 @@
     {:else}
       <div class="grid">
         {#each shown as card (card.id)}
-          <Card
-            {card}
-            dupCount={$collection[card.id]?.count ?? 1}
-            favourite={$favourites.has(card.id)}
-            onclick={() => (detail = card)}
-            onResolveImage={(url) => collection.setImage(card.id, url)}
-          />
+          <div class="cell">
+            <Card
+              {card}
+              dupCount={$collection[card.id]?.count ?? 1}
+              favourite={$favourites.has(card.id)}
+              onclick={() => (detail = card)}
+              onResolveImage={(url) => collection.setImage(card.id, url)}
+            />
+          </div>
         {/each}
       </div>
     {/if}
@@ -375,5 +377,11 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
     gap: clamp(16px, 2vw, 28px);
+  }
+  /* poor-man's virtualisation: the browser skips layout, paint and the foil
+     animations for any card that isn't near the viewport */
+  .cell {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 300px;
   }
 </style>

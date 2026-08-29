@@ -634,6 +634,10 @@
     position: relative;
     border-radius: var(--card-radius);
     transition: transform var(--dur) var(--ease);
+    /* poor-man's virtualisation: browser skips layout / paint / the foil
+       animations for cards that aren't near the viewport */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 280px;
   }
   .pick.picked {
     outline: 2px solid var(--accent, var(--rare));
