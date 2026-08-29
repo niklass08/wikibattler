@@ -14,8 +14,11 @@
   let rarityFilter = $state<Rarity | 'all'>('all');
   let tagFilter = $state<Tag | 'all'>('all');
   let favOnly = $state(false);
+  let query = $state('');
   let sort = $state<Sort>('recent');
   let detail = $state<CardT | null>(null);
+
+  const q = $derived(query.trim().toLowerCase());
 
   const progress = $derived(computeProgress($collection));
 
@@ -61,6 +64,7 @@
 
   const shown = $derived(
     owned
+      .filter((c) => !q || c.title.toLowerCase().includes(q))
       .filter((c) => !favOnly || $favourites.has(c.id))
       .filter((c) => rarityFilter === 'all' || c.rarity === rarityFilter)
       .filter((c) => tagFilter === 'all' || (c.tags ?? []).includes(tagFilter))
@@ -118,6 +122,13 @@
     </header>
 
     <div class="filters">
+      <input
+        class="search"
+        type="search"
+        placeholder="Search cards…"
+        aria-label="Search cards by title"
+        bind:value={query}
+      />
       <div class="chips">
         <button class:on={rarityFilter === 'all'} onclick={() => (rarityFilter = 'all')}>All</button>
         {#each RARITIES as r (r)}
@@ -340,6 +351,24 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-sm);
     padding: 7px 10px;
+  }
+  .search {
+    flex: 1 1 180px;
+    max-width: 320px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+  }
+  .search::placeholder {
+    color: var(--text-faint);
+  }
+  .search:focus-visible {
+    outline: 1px solid var(--accent, var(--rare));
+    border-color: var(--accent, var(--rare));
   }
 
   .grid {

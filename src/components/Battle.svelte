@@ -28,6 +28,8 @@
   let rarityFilter = $state<Rarity | 'all'>('all');
   let roleFilter = $state<'all' | Role>('all');
   let rsort = $state<RSort>('power');
+  let query = $state('');
+  const q = $derived(query.trim().toLowerCase());
 
   // stored ids → cards, in pick order, dropping anything no longer owned
   const teamCards = $derived(
@@ -43,6 +45,7 @@
   // the grid never reshuffles under the cursor while you build
   const roster = $derived(
     owned
+      .filter((c) => !q || c.title.toLowerCase().includes(q))
       .filter((c) => rarityFilter === 'all' || c.rarity === rarityFilter)
       .filter((c) => roleFilter === 'all' || roleOf.get(c.id) === roleFilter)
       // a stat sort only lists cards that actually show that stat
@@ -216,6 +219,13 @@
     </div>
 
     <div class="filters">
+      <input
+        class="search"
+        type="search"
+        placeholder="Search cards…"
+        aria-label="Search cards by title"
+        bind:value={query}
+      />
       <div class="chips">
         <button class:on={rarityFilter === 'all'} onclick={() => (rarityFilter = 'all')}>All</button>
         {#each RARITIES as r (r)}
@@ -557,6 +567,24 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-sm);
     padding: 7px 10px;
+  }
+  .search {
+    flex: 1 1 180px;
+    max-width: 320px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+  }
+  .search::placeholder {
+    color: var(--text-faint);
+  }
+  .search:focus-visible {
+    outline: 1px solid var(--accent, var(--rare));
+    border-color: var(--accent, var(--rare));
   }
   .none {
     color: var(--text-dim);
