@@ -220,6 +220,11 @@
       0 0 0 1px rgba(0, 0, 0, 0.55),
       0 10px 34px rgba(0, 0, 0, 0.6);
   }
+  /* the rarity mark should still read as itself on a negated card — invert it a
+     second time so the front's inversion cancels out just for the glyph */
+  .flipper.negated .glyph {
+    filter: invert(1);
+  }
 
   .front {
     display: flex;
