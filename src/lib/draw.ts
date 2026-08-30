@@ -37,12 +37,16 @@ const TARGET: Record<Rarity, number> = { common: 7, uncommon: 5, rare: 4, mythic
 const QUICK_TARGET: Record<Rarity, number> = { common: 5, uncommon: 2, rare: 2, mythic: 1 };
 
 /**
- * Background warm target — stock candidates well past what one pack needs so
- * later builds do little or no sourcing. Filled by `warmBuckets()` while idle.
+ * Background warm target — stock a little past what one pack needs so the next
+ * couple of builds do less sourcing. Filled by `warmBuckets()` in small bounded
+ * steps while the player is looking at a pack.
  */
-const WARM_TARGET: Record<Rarity, number> = { common: 24, uncommon: 16, rare: 12, mythic: 8 };
+const WARM_TARGET: Record<Rarity, number> = { common: 12, uncommon: 8, rare: 6, mythic: 3 };
 
 const CANDIDATES_KEY = 'wikitcg:candidates:v1';
+
+/** Rough internal-link count from wikitext byte length — ~1 ns-0 link per 190 B. */
+const estLinks = (bytes: number): number => Math.max(1, Math.round(bytes / 190));
 
 const shuffle = <T>(a: T[]): T[] => {
   for (let i = a.length - 1; i > 0; i--) {
@@ -305,15 +309,17 @@ async function assembleFrom(source: Buckets, opts: { persist: boolean }): Promis
   const cands = chosen.map((stub) => byId.get(stub.id)!);
   for (const c of cands) usedIds.add(c.page.pageid);
 
-  const counts = await wiki.linkCounts(cands.map((c) => c.page.title));
   const cards = await Promise.all(
     cands.map(async (cand) => {
-      let links =
-        counts.get(cand.page.title) ??
-        [...counts].find(([k]) => looseEq(k, cand.page.title))?.[1];
-      if (links === undefined) {
-        links = await wiki.linkCount(cand.page.title).catch(() => 0);
-      }
+      const rarity = rarityFromViews(cand.monthlyViews);
+      // Strength = internal link count. An exact count is one `parse` call each —
+      // too many for a browser client — so only rare/mythic (where the stat is
+      // battle-relevant and the article is big enough for the estimate to be
+      // shaky) get the real number; common/uncommon estimate from byte length.
+      const links =
+        rarity === 'rare' || rarity === 'mythic'
+          ? await wiki.linkCount(cand.page.title).catch(() => estLinks(cand.page.bytes))
+          : estLinks(cand.page.bytes);
       // `pilicense=any` covers most lead art; the rest is resolved lazily
       // (and persisted) by Card.svelte on reveal.
       return wiki.toCard({ page: cand.page, monthlyViews: cand.monthlyViews, links });
@@ -420,13 +426,13 @@ export function warmBuckets(): Promise<void> {
   return withLock(async () => {
     restoreCandidates();
     const step: Record<Rarity, number> = {
-      common: Math.min(buckets.common.length + 8, WARM_TARGET.common),
-      uncommon: Math.min(buckets.uncommon.length + 6, WARM_TARGET.uncommon),
-      rare: Math.min(buckets.rare.length + 5, WARM_TARGET.rare),
-      mythic: Math.min(buckets.mythic.length + 4, WARM_TARGET.mythic)
+      common: Math.min(buckets.common.length + 4, WARM_TARGET.common),
+      uncommon: Math.min(buckets.uncommon.length + 3, WARM_TARGET.uncommon),
+      rare: Math.min(buckets.rare.length + 2, WARM_TARGET.rare),
+      mythic: Math.min(buckets.mythic.length + 2, WARM_TARGET.mythic)
     };
     if (RARITIES.every((r) => buckets[r].length >= step[r])) return;
-    await stockBuckets(step, 6);
+    await stockBuckets(step, 3);
     persistCandidates();
   });
 }

@@ -16,7 +16,7 @@ import { applyMythicSignatures } from './signature';
 import { setFetchMode } from './wiki';
 import { activePack, ownedPacks, type ActivePack } from './shop';
 
-export const MAX_PREFETCH = 5;
+export const MAX_PREFETCH = 3;
 const KEY = 'wikitcg:packqueue:v1';
 /** After a failed refill, wait this long before an automatic retry. */
 const ERROR_COOLDOWN_MS = 8000;

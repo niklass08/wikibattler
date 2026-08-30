@@ -27,14 +27,14 @@ Key pieces:
   articles with no lead image, from the REST `media-list` gallery set.
 - `src/lib/draw.ts` — `buildPack()`: fill a candidate bucket per rarity from the
   right source, hand it to the unchanged pure `generatePack()` (pack.ts), then
-  fetch link counts for the chosen 7 in **one batched call** (`wiki.linkCounts`,
-  parallel exact fallback for the pages the 500-link batch truncated). Sources:
-  common ← `generator=random`; rare/mythic ← pageviews *top* lists; uncommon ←
-  top-list tails + links harvested off popular articles. Buckets and sourcing
-  progress are **persisted** (`wikitcg:candidates:v1`); `warmBuckets()` stocks
-  them past one pack's worth while idle so most builds do no sourcing. A shared
+  set each card's strength — an exact `parse` link count for rare/mythic, a
+  byte-length estimate (`estLinks`) for common/uncommon so no extra request.
+  Sources: common ← `generator=random`; rare/mythic ← pageviews *top* lists;
+  uncommon ← top-list tails + links harvested off popular articles. Buckets and
+  sourcing progress are **persisted** (`wikitcg:candidates:v1`); `warmBuckets()`
+  tops them up in small bounded steps while the player looks at a pack. A shared
   lock serialises `buildPack` and `warmBuckets`.
-- `src/lib/packQueue.ts` — ~5 fully-built packs kept ready in the background,
+- `src/lib/packQueue.ts` — ~3 fully-built packs kept ready in the background,
   persisted to `localStorage`. `take()` is synchronous; the queue refills after
   and then calls `warmBuckets()`. An empty queue flips fetch mode to `fg` and
   builds the next pack "quick"; empty queue + API error ⇒ PackOpener error + Retry.
@@ -132,10 +132,10 @@ Static SPA. No server, no API keys, no bundled data. Browser only.
 rarity is still needed — `list=random` alone can't fill the rare slot. The fix is
 **per-slot sources**: `generator=random` for commons, the pageviews *top* lists for
 rare/mythic, link-harvesting for the uncommon middle. Latency is hidden behind the
-background **prefetch queue** of ~5 packs + persisted candidate buckets, and the
-per-pack call count is kept low (batched link counts, ≤3 concurrent, circuit
-breaker) so a build is seconds not minutes. No offline mode: empty queue +
-unreachable API ⇒ error + retry.
+background **prefetch queue** of ~3 packs + persisted candidate buckets, and the
+per-pack call count is kept low (serial requests, exact link counts only for
+rare/mythic, a sustained-block circuit breaker) so a browser client stays off
+Wikimedia's 429 list. No offline mode: empty queue + unreachable API ⇒ error + retry.
 
 ---
 
@@ -540,11 +540,13 @@ by Elo. Lives in its own lazily-loaded chunk so the core game is untouched.
 - **Action API needs `origin=*` in the URL** or the request fails CORS — easy to
   forget. Do **not** add custom request headers (e.g. `Api-User-Agent`) from the
   browser — that triggers a preflight the API doesn't answer.
-- **Rate limits:** `wiki.ts` runs ≤3 concurrent with a small gap, honours a
-  *capped* `Retry-After` on 429, and trips a **circuit breaker** (fail fast for
-  ~20 s) after a run of 429s so a rate-limit episode can't drag a build into
-  minutes. Foreground vs background fetch modes trade retries for speed. The
-  background queue + persisted candidate buckets (`warmBuckets`) absorb latency.
+- **Rate limits:** Wikimedia rate-limits anon browser clients aggressively.
+  `wiki.ts` runs **serial** (1 in flight, ~500 ms gap), honours a *capped*
+  `Retry-After` on 429, and trips a **circuit breaker** (fail fast for 30 s) only
+  when a 429 survives *all* its backoffs — a transient burst limit costs nothing.
+  Foreground vs background fetch modes trade retries for speed. Keeping the
+  per-pack call count low (≈8: exact link counts for rare/mythic only) matters
+  more than concurrency.
 - **`pageviews` trailing `null`** for the current day — filter before summing.
 - **`parse&prop=links`** includes templates/categories/files and redlinks — filter to
   `ns 0 && exists`.

@@ -18,13 +18,13 @@ const REST = 'https://wikimedia.org/api/rest_v1';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Request scheduler. Wikimedia asks anonymous clients not to hammer the API in
- * parallel — but a small, paced concurrency is fine and roughly halves the wall
- * time of a pack build. So: at most `maxConcurrent` requests in flight, and a
- * minimum gap between request *starts*.
+ * Request scheduler. Wikimedia asks anonymous clients to make requests in
+ * series, not parallel — so this keeps at most `maxConcurrent` (1) in flight
+ * with a minimum gap between starts. The pack queue hides the latency; being a
+ * good citizen keeps us off the 429 list.
  */
-let minGapMs = 120;
-let maxConcurrent = 3;
+let minGapMs = 500;
+let maxConcurrent = 1;
 let inflight = 0;
 let lastStart = 0;
 const waitQueue: Array<() => void> = [];
@@ -66,14 +66,15 @@ const MODE = {
 } as const;
 
 /**
- * Circuit breaker. Once Wikimedia starts 429-ing an anon client, every call
- * 429s — retrying just serializes backoffs into minutes. After a run of them we
- * fail fast for a cooldown and let the pack queue surface its retry UI.
+ * Circuit breaker for a *sustained* block (not a transient burst limit). A 429
+ * that clears on backoff costs nothing; only a call that 429s through all its
+ * retries counts as a strike. `strike` eases on any success. At the trip point
+ * every call fails fast for a cooldown and the pack queue shows its retry UI.
  */
 let strike = 0;
 let breakerUntil = 0;
-const BREAKER_TRIP = 4;
-const BREAKER_COOLDOWN_MS = 20_000;
+const BREAKER_TRIP = 3;
+const BREAKER_COOLDOWN_MS = 30_000;
 
 /** Test hook — drop the inter-request delay so mocked suites run fast. */
 export function _setMinGap(ms: number): void {
@@ -102,20 +103,20 @@ async function fetchJson<T = any>(url: string): Promise<T> {
     }
 
     if (res && res.ok) {
-      strike = 0;
+      strike = Math.max(0, strike - 1);
       return (await res.json()) as T;
     }
 
     if (res && res.status === 429) {
       lastErr = 'HTTP 429';
-      if (++strike >= BREAKER_TRIP) {
-        breakerUntil = Date.now() + BREAKER_COOLDOWN_MS;
+      if (attempt === tries - 1) {
+        // backoff didn't clear it — a hard failure, not a transient burst limit
+        if (++strike >= BREAKER_TRIP) breakerUntil = Date.now() + BREAKER_COOLDOWN_MS;
         break;
       }
-      if (attempt === tries - 1) break;
       const ra = Number(res.headers?.get?.('retry-after'));
       const backoff =
-        ra > 0 ? Math.min(ra * 1000, retryAfterCapMs) : Math.min(backoffCap, 400 * 2 ** attempt);
+        ra > 0 ? Math.min(ra * 1000, retryAfterCapMs) : Math.min(backoffCap, 500 * 2 ** attempt);
       await sleep(backoff);
       continue;
     }
@@ -128,7 +129,7 @@ async function fetchJson<T = any>(url: string): Promise<T> {
     // 5xx or a network throw — retry with backoff
     lastErr = res ? `HTTP ${res.status}` : lastErr || 'network error';
     if (attempt === tries - 1) break;
-    await sleep(Math.min(backoffCap, 400 * 2 ** attempt));
+    await sleep(Math.min(backoffCap, 500 * 2 ** attempt));
   }
   throw new Error(`Wikipedia request failed (${lastErr})`);
 }
@@ -368,55 +369,14 @@ export async function linksOf(title: string): Promise<string[]> {
   return links.filter((l) => l.ns === 0 && l.exists !== false).map((l) => String(l.title));
 }
 
-/** Exact count of internal mainspace links — drives strength. */
+/**
+ * Exact count of internal mainspace links — drives strength. One `parse` call.
+ * `prop=links` on `action=query` can't batch this usefully (a 500-link budget is
+ * shared across all titles), so the pack build fires these in parallel through
+ * the scheduler instead.
+ */
 export async function linkCount(title: string): Promise<number> {
   return (await linksOf(title)).length;
-}
-
-/**
- * Approximate link counts for a batch of titles in one call — instead of a
- * `parse` call per card. `prop=links` has a 500-link budget shared across the
- * batch, so once it truncates, that page and every page after it are left out
- * of the result and the caller falls back to the exact `linkCount` for them
- * (in parallel). Redlinks are included here (no `exists` flag), a ~1-2% high on
- * the log strength curve. Titles missing from the map = "fetch it exactly".
- */
-export async function linkCounts(titles: string[]): Promise<Map<string, number>> {
-  const out = new Map<string, number>();
-  const list = titles.slice(0, 20);
-  if (list.length === 0) return out;
-
-  const params = new URLSearchParams({
-    action: 'query',
-    format: 'json',
-    formatversion: '2',
-    origin: '*',
-    titles: list.join('|'),
-    prop: 'links',
-    plnamespace: '0',
-    pllimit: 'max',
-    redirects: '1'
-  });
-
-  let data: any;
-  try {
-    data = await fetchJson(`${API}?${params}`);
-  } catch {
-    return out; // total miss — caller fetches every title exactly
-  }
-
-  const pages: any[] = data?.query?.pages ?? [];
-  const cutId = data?.continue?.plcontinue
-    ? Number(String(data.continue.plcontinue).split('|')[0])
-    : null;
-
-  let truncated = false;
-  for (const p of pages) {
-    if (cutId !== null && p.pageid === cutId) truncated = true;
-    if (truncated || p.missing || !p.pageid) continue; // this page + rest: fall back
-    out.set(String(p.title), Array.isArray(p.links) ? p.links.length : 0);
-  }
-  return out;
 }
 
 // --- card assembly --------------------------------------------------------

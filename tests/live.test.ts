@@ -214,8 +214,12 @@ describe('buildPack (live assembly)', () => {
       expect(order.indexOf(c.rarity)).toBeGreaterThanOrEqual(order.indexOf(base[i]))
     );
 
-    // each card carries an exact link count fetched per-card
-    for (const c of pack) expect(c.raw.links).toBe(150);
+    // rare/mythic get an exact link count (parse call → 150); common/uncommon
+    // estimate from byte length (no extra request)
+    for (const c of pack) {
+      if (c.rarity === 'rare' || c.rarity === 'mythic') expect(c.raw.links).toBe(150);
+      else expect(c.raw.links).toBeGreaterThan(0);
+    }
     expect(fetchMock).toHaveBeenCalled();
   }, 30_000);
 

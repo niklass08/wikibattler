@@ -45,21 +45,22 @@ When an article has no lead image of its own, `wiki.backupImage()` pulls the fir
 "content" image from the REST media-list (Wikipedia's own curated gallery set);
 articles with nothing usable get a title-tinted typographic card.
 
-`src/lib/packQueue.ts` keeps ~5 fully-built packs ready in the background
-(persisted to `localStorage`), so opening one is instant. To keep builds fast:
+`src/lib/packQueue.ts` keeps ~3 fully-built packs ready in the background
+(persisted to `localStorage`), so opening one is instant. Wikimedia rate-limits
+anonymous browser clients hard, so a build is kept lean:
 
-- **candidate buckets are pre-stocked and persisted** (`wikitcg:candidates:v1`) —
-  `warmBuckets()` fills them past what one pack needs while idle, so most builds
-  do little or no article sourcing;
-- **link counts are one batched call** (`wiki.linkCounts`), with a parallel exact
-  fallback only for pages the 500-link batch budget truncated;
-- requests run at **≤3 concurrent** with a small gap, not strictly serial;
-- a **circuit breaker** in `wiki.ts` fails fast for ~20 s once Wikimedia starts
-  rate-limiting, instead of grinding through minutes of backoff;
-- the first pack for a waiting player is built in a **"quick" mode** (bare-minimum
-  sourcing) and the queue refines itself afterward.
+- **requests are serial** — `wiki.ts` scheduler runs 1 in flight with a ~500 ms
+  gap (Wikimedia's stated ask for anon clients);
+- **exact link counts only for rare/mythic** (one `parse` call each); common and
+  uncommon estimate strength from wikitext byte length — no extra request;
+- **candidate buckets persist** (`wikitcg:candidates:v1`); `warmBuckets()` tops
+  them up in small bounded steps while the player looks at a pack;
+- a **circuit breaker** trips only on a *sustained* block (a 429 that survives
+  all its backoffs), then fails fast for 30 s so a retry storm can't build;
+- the first pack for a waiting player is built in a **"quick" mode**.
 
-If the API is unreachable and the queue is empty, the pack screen shows an error + retry.
+If the API is rate-limiting / unreachable and the queue is empty, the pack screen
+shows an error + retry.
 
 Rarity/stat thresholds live in `src/lib/rarity.ts`.
 

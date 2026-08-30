@@ -1,12 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  linkCounts,
-  linksOf,
-  searchEnriched,
-  _setMinGap,
-  _resetBreaker,
-  setFetchMode
-} from '../src/lib/wiki';
+import { linkCount, linksOf, searchEnriched, _setMinGap, _resetBreaker, setFetchMode } from '../src/lib/wiki';
 
 _setMinGap(0);
 
@@ -19,54 +12,24 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe('linkCounts (batched)', () => {
-  it('returns exact counts when the batch is not truncated', async () => {
+describe('linkCount', () => {
+  it('counts ns-0 links that exist', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
         json({
-          query: {
-            pages: [
-              { pageid: 1, title: 'Alpha', links: new Array(12).fill({ ns: 0, title: 'x' }) },
-              { pageid: 2, title: 'Beta', links: new Array(40).fill({ ns: 0, title: 'x' }) },
-              { pageid: 3, title: 'Gamma', links: [] }
+          parse: {
+            links: [
+              { ns: 0, title: 'A', exists: true },
+              { ns: 0, title: 'B', exists: true },
+              { ns: 0, title: 'Redlink', exists: false }, // dropped
+              { ns: 14, title: 'Category:X', exists: true } // dropped
             ]
           }
         })
       )
     );
-    const m = await linkCounts(['Alpha', 'Beta', 'Gamma']);
-    expect(m.get('Alpha')).toBe(12);
-    expect(m.get('Beta')).toBe(40);
-    expect(m.get('Gamma')).toBe(0);
-  });
-
-  it('drops the truncated page and everything after it for the caller to fetch exactly', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () =>
-        json({
-          continue: { plcontinue: '2|0|Some_Link' },
-          query: {
-            pages: [
-              { pageid: 1, title: 'Alpha', links: new Array(30).fill({ ns: 0, title: 'x' }) },
-              { pageid: 2, title: 'Beta', links: new Array(470).fill({ ns: 0, title: 'x' }) },
-              { pageid: 3, title: 'Gamma', links: [] }
-            ]
-          }
-        })
-      )
-    );
-    const m = await linkCounts(['Alpha', 'Beta', 'Gamma']);
-    expect(m.get('Alpha')).toBe(30); // complete
-    expect(m.has('Beta')).toBe(false); // truncated
-    expect(m.has('Gamma')).toBe(false); // after the truncation point
-  });
-
-  it('returns an empty map (caller fetches all) when the call fails', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => json({}, { ok: false, status: 400 })));
-    const m = await linkCounts(['Alpha']);
-    expect(m.size).toBe(0);
+    expect(await linkCount('Whatever')).toBe(2);
   });
 });
 
@@ -111,7 +74,7 @@ describe('rate-limit circuit breaker', () => {
     vi.stubGlobal('fetch', f);
     setFetchMode('fg'); // 2 tries per call, short backoff
 
-    // enough calls to trip the breaker (4 consecutive 429s)
+    // enough 429s to trip the breaker
     for (let i = 0; i < 3; i++) {
       await expect(linksOf('X')).rejects.toThrow();
     }
