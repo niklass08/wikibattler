@@ -15,7 +15,13 @@ export interface ThemeDef {
   icon: string;
   /** hex — the pack's colour code */
   color: string;
-  /** gsrsearch query string for wiki.searchEnriched */
+  /**
+   * Primary sourcing query — `hastemplate:` clauses matching the theme's infobox
+   * template(s). An infobox is an authoritative topic signal, far cleaner than
+   * keyword matching.
+   */
+  infobox: string;
+  /** Keyword fallback (`gsrsearch`) if the infobox query comes up short. */
   search: string;
 }
 
@@ -59,6 +65,42 @@ const COLOR: Record<Tag, string> = {
   vehicles: '#7d8894' // gunmetal (the one neutral)
 };
 
+/**
+ * `hastemplate:` sourcing queries. Template names are the common English
+ * Wikipedia infobox templates for each topic; if one is wrong or too narrow the
+ * keyword `SEARCH` fallback below kicks in.
+ */
+const INFOBOX: Record<Tag, string> = {
+  cinema: 'hastemplate:"Infobox film"',
+  music:
+    'hastemplate:"Infobox album" OR hastemplate:"Infobox song" OR hastemplate:"Infobox musical artist"',
+  sport:
+    'hastemplate:"Infobox football biography" OR hastemplate:"Infobox basketball biography" OR hastemplate:"Infobox NFL biography" OR hastemplate:"Infobox cricketer" OR hastemplate:"Infobox tennis biography"',
+  politics: 'hastemplate:"Infobox officeholder" OR hastemplate:"Infobox political party"',
+  war:
+    'hastemplate:"Infobox military conflict" OR hastemplate:"Infobox military person" OR hastemplate:"Infobox weapon"',
+  history:
+    'hastemplate:"Infobox historical event" OR hastemplate:"Infobox monarch" OR hastemplate:"Infobox former country"',
+  science:
+    'hastemplate:"Chembox" OR hastemplate:"Infobox element" OR hastemplate:"Infobox physical quantity" OR hastemplate:"Infobox spaceflight"',
+  geography:
+    'hastemplate:"Infobox settlement" OR hastemplate:"Infobox country" OR hastemplate:"Infobox river" OR hastemplate:"Infobox mountain" OR hastemplate:"Infobox islands"',
+  arts:
+    'hastemplate:"Infobox artwork" OR hastemplate:"Infobox book" OR hastemplate:"Infobox writer" OR hastemplate:"Infobox artist"',
+  games: 'hastemplate:"Infobox video game" OR hastemplate:"Infobox game"',
+  nature: 'hastemplate:"Speciesbox" OR hastemplate:"Taxobox" OR hastemplate:"Automatic taxobox"',
+  business: 'hastemplate:"Infobox company"',
+  religion:
+    'hastemplate:"Infobox religion" OR hastemplate:"Infobox deity" OR hastemplate:"Infobox Christian denomination"',
+  plants: 'hastemplate:"Speciesbox" (plant OR flora OR tree OR flower OR shrub OR fern)',
+  scientists: 'hastemplate:"Infobox scientist"',
+  disease:
+    'hastemplate:"Infobox medical condition" OR hastemplate:"Infobox medical condition (new)"',
+  // ships use a modular infobox hastemplate: can't see — the keyword fallback covers them
+  vehicles:
+    'hastemplate:"Infobox automobile" OR hastemplate:"Infobox aircraft" OR hastemplate:"Infobox locomotive" OR hastemplate:"Infobox rocket"'
+};
+
 const SEARCH: Record<Tag, string> = {
   cinema: 'film OR movie OR cinema OR "film director" OR actor OR screenplay',
   music: 'album OR song OR band OR musician OR "record label" OR composer',
@@ -82,7 +124,7 @@ const SEARCH: Record<Tag, string> = {
 export const THEMES: Record<Tag, ThemeDef> = Object.fromEntries(
   TAGS.map((t) => [
     t,
-    { label: TAG_LABEL[t], icon: ICON[t], color: COLOR[t], search: SEARCH[t] }
+    { label: TAG_LABEL[t], icon: ICON[t], color: COLOR[t], infobox: INFOBOX[t], search: SEARCH[t] }
   ])
 ) as Record<Tag, ThemeDef>;
 

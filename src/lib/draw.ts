@@ -291,7 +291,10 @@ function dropConsumed(source: Buckets): void {
  * `generatePack()` choose the 7 with the guaranteed split, fetch link counts
  * (one batched call + parallel exact fallback), and apply the finishes.
  */
-async function assembleFrom(source: Buckets, opts: { persist: boolean }): Promise<Card[]> {
+async function assembleFrom(
+  source: Buckets,
+  opts: { persist: boolean; forceTag?: Tag }
+): Promise<Card[]> {
   const byId = new Map<number, Candidate>();
   const pools: RarityPools = { common: [], uncommon: [], rare: [], mythic: [] };
   for (const r of RARITIES) {
@@ -322,7 +325,12 @@ async function assembleFrom(source: Buckets, opts: { persist: boolean }): Promis
           : estLinks(cand.page.bytes);
       // `pilicense=any` covers most lead art; the rest is resolved lazily
       // (and persisted) by Card.svelte on reveal.
-      return wiki.toCard({ page: cand.page, monthlyViews: cand.monthlyViews, links });
+      const card = wiki.toCard({ page: cand.page, monthlyViews: cand.monthlyViews, links });
+      if (opts.forceTag) {
+        // the pack's theme is authoritative (infobox-sourced) — lead with it
+        card.tags = [opts.forceTag, ...card.tags.filter((t) => t !== opts.forceTag)].slice(0, 4);
+      }
+      return card;
     })
   );
 
@@ -349,12 +357,20 @@ function clearThemed(): void {
   themedTag = null;
 }
 
-/** stash() + the theme gate. Returns whether the page was accepted. */
-function stashThemed(page: wiki.WikiPage, monthlyViews: number, theme: Tag): boolean {
+/**
+ * stash() for a themed candidate. `verify` runs the deriveTags gate — on for
+ * the noisy keyword fallback, off for the authoritative infobox query.
+ */
+function stashThemed(
+  page: wiki.WikiPage,
+  monthlyViews: number,
+  theme: Tag,
+  verify: boolean
+): boolean {
   const id = page.pageid;
   if (usedIds.has(id) || pendingIds.has(id) || themedRejects.has(id)) return false;
   if (!wiki.isPlayable(page)) return false;
-  if (!deriveTags(page.categories, page.extract).includes(theme)) {
+  if (verify && !deriveTags(page.categories, page.extract).includes(theme)) {
     themedRejects.add(id);
     return false;
   }
@@ -368,32 +384,32 @@ async function stockThemedBuckets(theme: Tag, targets: Record<Rarity, number>): 
     clearThemed();
     themedTag = theme;
   }
-  const q = THEMES[theme].search;
-  const take = (pages: wiki.WikiPage[]) => {
-    let added = 0;
-    for (const p of pages) {
-      if (stashThemed(p, wiki.monthlyFromViews60(p.views60 ?? 0), theme)) added++;
-    }
-    return added;
-  };
   const total = () => RARITIES.reduce((s, r) => s + themedBuckets[r].length, 0);
   const rareShort = () =>
     themedBuckets.rare.length < targets.rare || themedBuckets.mythic.length < targets.mythic;
   const need = targets.common + targets.uncommon + targets.rare + targets.mythic;
 
-  // Relevance-sorted search only: it returns genuinely on-theme articles (better
-  // deriveTags hit rate than random keyword matches) spread across the view
-  // bands. Page 0 always runs — that's where the theme's flagship (rare/mythic)
-  // articles sit — then a random offset keeps successive builds varied. A themed
-  // build then costs about the same handful of requests as a random one.
-  const roll = 20 + Math.floor(Math.random() * 8) * 20; // 20..160
-  for (let i = 0; i < 6; i++) {
-    if (total() >= need && !rareShort()) break;
-    const offset = i === 0 ? 0 : roll + (i - 1) * 20;
-    const pages = await wiki.searchEnriched(q, 20, 'relevance', offset);
-    if (pages.length === 0) break;
-    if (take(pages) === 0 && i >= 2) break;
-  }
+  // Relevance sort: page 0 is where the theme's flagship (rare/mythic) articles
+  // sit; a random offset for the rest keeps successive builds varied. A themed
+  // build costs about the same handful of requests as a random one.
+  const sweep = async (query: string, verify: boolean) => {
+    const roll = 20 + Math.floor(Math.random() * 8) * 20; // 20..160
+    for (let i = 0; i < 6; i++) {
+      if (total() >= need && !rareShort()) break;
+      const offset = i === 0 ? 0 : roll + (i - 1) * 20;
+      const pages = await wiki.searchEnriched(query, 20, 'relevance', offset);
+      if (pages.length === 0) break;
+      let added = 0;
+      for (const p of pages) {
+        if (stashThemed(p, wiki.monthlyFromViews60(p.views60 ?? 0), theme, verify)) added++;
+      }
+      if (added === 0 && i >= 2) break;
+    }
+  };
+
+  // infobox-templated articles first (authoritative); keyword search backs it up
+  await sweep(THEMES[theme].infobox, false);
+  if (total() < need) await sweep(THEMES[theme].search, true);
 }
 
 /**
@@ -405,7 +421,7 @@ export function buildPack(opts: { quick?: boolean; theme?: Tag } = {}): Promise<
     const targets = opts.quick ? QUICK_TARGET : TARGET;
     if (opts.theme) {
       await stockThemedBuckets(opts.theme, targets);
-      return assembleFrom(themedBuckets, { persist: false });
+      return assembleFrom(themedBuckets, { persist: false, forceTag: opts.theme });
     }
     restoreCandidates();
     await stockBuckets(targets);

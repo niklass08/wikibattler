@@ -11,6 +11,7 @@ describe('THEMES', () => {
       expect(d.label.length, t).toBeGreaterThan(0);
       expect(d.icon.length, t).toBeGreaterThan(0);
       expect(d.search.length, t).toBeGreaterThan(3);
+      expect(d.infobox, t).toContain('hastemplate:');
       expect(d.color, t).toMatch(/^#[0-9a-f]{6}$/i);
     }
   });

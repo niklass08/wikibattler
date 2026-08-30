@@ -471,11 +471,14 @@ Export/import collection as JSON — nice, cheap, do it if time allows.
   untouched).
 - **Thematic pack sourcing** (`draw.ts`): `buildPack({ theme })` fills a separate
   `themedBuckets` (one theme active at a time, `usedIds` shared) from
-  `wiki.searchEnriched` — `generator=search&gsrsort=relevance`, page 0 (the
-  theme's flagship rare/mythic articles) then a random offset for variety —
-  keeping only pages `deriveTags` confirms on-theme. ~5 search calls, so a themed
-  build costs about the same as a random one. Everything from `generatePack`
-  onward is the shared `assembleFrom` tail. Themed buckets are not persisted.
+  `wiki.searchEnriched` — the primary query is `THEMES[t].infobox`, a
+  `hastemplate:"Infobox …"` clause (an infobox is an authoritative topic signal
+  — cleaner than keyword matching and it works where Wikidata SPARQL times out
+  on people/occupations); `THEMES[t].search` keyword query backs it up if the
+  template is too narrow. `gsrsort=relevance` with page 0 (flagship rare/mythic)
+  then a random offset for variety. The theme tag is forced onto every card
+  (`assembleFrom` `forceTag`). ~4–6 requests, same as a random pack. Themed
+  buckets not persisted.
 - **`packQueue`** subscribes to `activePack` + `ownedPacks`: `target()` caps a
   themed queue at `min(owned, MAX_PREFETCH)`; a type switch bumps `switchGen`
   (discards stale in-flight builds), stashes the old queue in memory, rebuilds;
