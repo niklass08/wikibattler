@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Card } from '../../lib/types';
+  import { backupImage } from '../../lib/wiki';
 
   let {
     card,
@@ -19,12 +20,28 @@
   const hue = $derived(
     Math.abs([...card.title].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0)) % 360
   );
+
+  // A defender card comes off the wire with no art (the defence code drops image
+  // URLs). Look one up lazily, once per title — same fallback path as Card.svelte,
+  // but the result stays local: an opponent team is transient.
+  let resolved = $state<string | null>(null);
+  let tried = '';
+  $effect(() => {
+    const title = card.title;
+    if (card.image || title === tried) return;
+    tried = title;
+    resolved = null;
+    backupImage(title).then((url) => {
+      if (url && card.title === title) resolved = url;
+    });
+  });
+  const src = $derived(card.image ?? resolved);
 </script>
 
 <figure class="mini rarity-{card.rarity}" class:down class:foil={(card.foil ?? 0) > 0} title={card.title}>
   <div class="art">
-    {#if card.image}
-      <img src={card.image} alt="" loading="lazy" />
+    {#if src}
+      <img {src} alt="" loading="lazy" />
     {:else}
       <div class="fallback" style="--fh:{hue}"><span>{initials}</span></div>
     {/if}
@@ -61,6 +78,10 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+    animation: fadein 300ms var(--ease);
+  }
+  @keyframes fadein {
+    from { opacity: 0; }
   }
   .fallback {
     display: grid;
