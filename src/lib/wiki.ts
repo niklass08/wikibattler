@@ -18,44 +18,117 @@ const REST = 'https://wikimedia.org/api/rest_v1';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Serialise request starts with a minimum gap. Wikimedia asks anonymous clients
- * to make requests in series, not parallel — this is the whole app's rate limiter.
- * Latency is hidden behind the background pack queue, so we can afford to be slow.
+ * Request scheduler. Wikimedia asks anonymous clients not to hammer the API in
+ * parallel — but a small, paced concurrency is fine and roughly halves the wall
+ * time of a pack build. So: at most `maxConcurrent` requests in flight, and a
+ * minimum gap between request *starts*.
  */
-let minGapMs = 250;
-let nextSlot = 0;
-async function throttle() {
-  const now = Date.now();
-  const wait = Math.max(0, nextSlot - now);
-  nextSlot = Math.max(now, nextSlot) + minGapMs;
-  if (wait > 0) await sleep(wait);
+let minGapMs = 120;
+let maxConcurrent = 3;
+let inflight = 0;
+let lastStart = 0;
+const waitQueue: Array<() => void> = [];
+
+function pump(): void {
+  while (inflight < maxConcurrent && waitQueue.length > 0) {
+    const go = waitQueue.shift()!;
+    inflight++;
+    const gap = Math.max(0, lastStart + minGapMs - Date.now());
+    lastStart = Date.now() + gap;
+    if (gap > 0) setTimeout(go, gap);
+    else go();
+  }
 }
+function acquire(): Promise<void> {
+  return new Promise((resolve) => {
+    waitQueue.push(resolve);
+    pump();
+  });
+}
+function release(): void {
+  inflight = Math.max(0, inflight - 1);
+  pump();
+}
+
+/**
+ * Fetch mode. `fg` (a player is staring at a spinner) trades resilience for
+ * speed — few retries, short backoff; `bg` (topping up the queue) can be patient.
+ */
+type FetchMode = 'fg' | 'bg';
+let fetchMode: FetchMode = 'bg';
+export function setFetchMode(m: FetchMode): void {
+  fetchMode = m;
+}
+
+const MODE = {
+  fg: { tries: 2, backoffCap: 2000, retryAfterCapMs: 4000 },
+  bg: { tries: 4, backoffCap: 4000, retryAfterCapMs: 10_000 }
+} as const;
+
+/**
+ * Circuit breaker. Once Wikimedia starts 429-ing an anon client, every call
+ * 429s — retrying just serializes backoffs into minutes. After a run of them we
+ * fail fast for a cooldown and let the pack queue surface its retry UI.
+ */
+let strike = 0;
+let breakerUntil = 0;
+const BREAKER_TRIP = 4;
+const BREAKER_COOLDOWN_MS = 20_000;
 
 /** Test hook — drop the inter-request delay so mocked suites run fast. */
 export function _setMinGap(ms: number): void {
   minGapMs = ms;
 }
+/** Test hook — reset the rate-limit circuit breaker. */
+export function _resetBreaker(): void {
+  strike = 0;
+  breakerUntil = 0;
+}
 
-async function fetchJson<T = any>(url: string, tries = 6): Promise<T> {
+async function fetchJson<T = any>(url: string): Promise<T> {
+  const { tries, backoffCap, retryAfterCapMs } = MODE[fetchMode];
   let lastErr = '';
   for (let attempt = 0; attempt < tries; attempt++) {
-    await throttle();
+    if (Date.now() < breakerUntil) throw new Error('Wikipedia is rate-limiting — cooling down.');
+
+    await acquire();
+    let res: Response | undefined;
     try {
-      const res = await fetch(url);
-      if (res.status === 429 || res.status >= 500) {
-        lastErr = `HTTP ${res.status}`;
-        const retryAfter = Number(res.headers?.get?.('retry-after'));
-        const backoff = retryAfter > 0 ? retryAfter * 1000 : Math.min(8000, 500 * 2 ** attempt);
-        await sleep(backoff);
-        continue;
-      }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return (await res.json()) as T;
+      res = await fetch(url);
     } catch (err) {
       lastErr = err instanceof Error ? err.message : String(err);
-      if (attempt === tries - 1) break;
-      await sleep(Math.min(8000, 500 * 2 ** attempt));
+    } finally {
+      release();
     }
+
+    if (res && res.ok) {
+      strike = 0;
+      return (await res.json()) as T;
+    }
+
+    if (res && res.status === 429) {
+      lastErr = 'HTTP 429';
+      if (++strike >= BREAKER_TRIP) {
+        breakerUntil = Date.now() + BREAKER_COOLDOWN_MS;
+        break;
+      }
+      if (attempt === tries - 1) break;
+      const ra = Number(res.headers?.get?.('retry-after'));
+      const backoff =
+        ra > 0 ? Math.min(ra * 1000, retryAfterCapMs) : Math.min(backoffCap, 400 * 2 ** attempt);
+      await sleep(backoff);
+      continue;
+    }
+
+    if (res && !res.ok && res.status < 500) {
+      // a 4xx that isn't rate-limiting won't fix itself
+      throw new Error(`Wikipedia request failed (HTTP ${res.status})`);
+    }
+
+    // 5xx or a network throw — retry with backoff
+    lastErr = res ? `HTTP ${res.status}` : lastErr || 'network error';
+    if (attempt === tries - 1) break;
+    await sleep(Math.min(backoffCap, 400 * 2 ** attempt));
   }
   throw new Error(`Wikipedia request failed (${lastErr})`);
 }
@@ -275,6 +348,52 @@ export async function linksOf(title: string): Promise<string[]> {
 /** Exact count of internal mainspace links — drives strength. */
 export async function linkCount(title: string): Promise<number> {
   return (await linksOf(title)).length;
+}
+
+/**
+ * Approximate link counts for a batch of titles in one call — instead of a
+ * `parse` call per card. `prop=links` has a 500-link budget shared across the
+ * batch, so once it truncates, that page and every page after it are left out
+ * of the result and the caller falls back to the exact `linkCount` for them
+ * (in parallel). Redlinks are included here (no `exists` flag), a ~1-2% high on
+ * the log strength curve. Titles missing from the map = "fetch it exactly".
+ */
+export async function linkCounts(titles: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  const list = titles.slice(0, 20);
+  if (list.length === 0) return out;
+
+  const params = new URLSearchParams({
+    action: 'query',
+    format: 'json',
+    formatversion: '2',
+    origin: '*',
+    titles: list.join('|'),
+    prop: 'links',
+    plnamespace: '0',
+    pllimit: 'max',
+    redirects: '1'
+  });
+
+  let data: any;
+  try {
+    data = await fetchJson(`${API}?${params}`);
+  } catch {
+    return out; // total miss — caller fetches every title exactly
+  }
+
+  const pages: any[] = data?.query?.pages ?? [];
+  const cutId = data?.continue?.plcontinue
+    ? Number(String(data.continue.plcontinue).split('|')[0])
+    : null;
+
+  let truncated = false;
+  for (const p of pages) {
+    if (cutId !== null && p.pageid === cutId) truncated = true;
+    if (truncated || p.missing || !p.pageid) continue; // this page + rest: fall back
+    out.set(String(p.title), Array.isArray(p.links) ? p.links.length : 0);
+  }
+  return out;
 }
 
 // --- card assembly --------------------------------------------------------

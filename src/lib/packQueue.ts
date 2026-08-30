@@ -8,10 +8,11 @@
  */
 import { writable } from 'svelte/store';
 import type { Card } from './types';
-import { buildPack } from './draw';
+import { buildPack, warmBuckets, bucketsWarm } from './draw';
 import { applyMythicSignatures } from './signature';
+import { setFetchMode } from './wiki';
 
-export const MAX_PREFETCH = 10;
+export const MAX_PREFETCH = 5;
 const KEY = 'wikitcg:packqueue:v1';
 /** After a failed refill, wait this long before an automatic retry. */
 const ERROR_COOLDOWN_MS = 8000;
@@ -28,6 +29,8 @@ let queue: Card[][] = [];
 let running = false;
 let started = false;
 let errorAt = 0;
+/** A player is waiting on an empty queue — build fast, be impatient with the API. */
+let urgent = false;
 
 function isPack(p: unknown): p is Card[] {
   return Array.isArray(p) && p.length === 7 && p.every((c) => c && typeof c === 'object' && 'id' in c);
@@ -56,14 +59,24 @@ async function refill(force = false): Promise<void> {
   if (running || !started) return;
   if (!force && errorAt && Date.now() - errorAt < ERROR_COOLDOWN_MS) return;
   running = true;
+  setFetchMode(urgent ? 'fg' : 'bg');
   status.update((s) => ({ ...s, warming: queue.length < MAX_PREFETCH, error: null }));
   try {
     while (started && queue.length < MAX_PREFETCH) {
-      queue.push(await buildPack());
+      // the first pack for a waiting player is built "quick" — bare-minimum
+      // sourcing — so the open is fast; the rest fill in properly
+      const quick = urgent && queue.length === 0;
+      queue.push(await buildPack({ quick }));
       errorAt = 0;
       persist();
+      if (queue.length > 0 && urgent) {
+        urgent = false;
+        setFetchMode('bg');
+      }
     }
     status.update((s) => ({ ...s, warming: false, error: null }));
+    // queue full — pre-stock candidate buckets so the next builds are near-instant
+    if (started && !bucketsWarm()) void warmBuckets().catch(() => {});
   } catch (err) {
     errorAt = Date.now();
     status.update((s) => ({
@@ -72,6 +85,7 @@ async function refill(force = false): Promise<void> {
       error: err instanceof Error ? err.message : 'Could not reach Wikipedia.'
     }));
   } finally {
+    setFetchMode('bg');
     running = false;
   }
 }
@@ -89,7 +103,9 @@ export function start(): void {
 export function take(): Card[] | null {
   const pack = queue.shift() ?? null;
   persist();
-  if (pack) void refill();
+  // an empty queue means someone is about to wait — build the next one fast
+  if (!pack || queue.length === 0) urgent = true;
+  void refill();
   // packs queued before a mechanic shipped need a top-up (mythic signatures);
   // applyMythicSignatures is a no-op for a card that already has one
   return pack ? applyMythicSignatures(pack) : null;
@@ -98,6 +114,7 @@ export function take(): Card[] | null {
 /** User-triggered retry after an error. */
 export function retry(): void {
   errorAt = 0;
+  urgent = true;
   status.update((s) => ({ ...s, error: null }));
   void refill(true);
 }

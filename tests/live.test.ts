@@ -139,15 +139,31 @@ function linksBody() {
   };
 }
 
+/** Batched `prop=links` query — 150 links per page, no truncation. */
+function linkCountsBody(titles: string[]) {
+  return {
+    query: {
+      pages: titles.map((t) => ({
+        pageid: hash(t),
+        title: t.replace(/_/g, ' '),
+        links: Array.from({ length: 150 }, (_, i) => ({ ns: 0, title: `L${i}` }))
+      }))
+    }
+  };
+}
+
 const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
   const url = String(input);
   if (url.includes('/metrics/pageviews/top/')) return jsonResponse(topBody());
   if (url.includes('/page/media-list/')) {
     return jsonResponse(mediaListBody(decodeURIComponent(url.split('/page/media-list/')[1])));
   }
-  if (url.includes('generator=random')) return jsonResponse(randomPagesBody(12));
+  if (url.includes('generator=random')) return jsonResponse(randomPagesBody(20));
   if (url.includes('action=parse')) return jsonResponse(linksBody());
   const titles = new URL(url).searchParams.get('titles') ?? '';
+  if (url.includes('action=query') && url.includes('prop=links')) {
+    return jsonResponse(linkCountsBody(titles.split('|')));
+  }
   if (titles) return jsonResponse(enrichBody(titles.split('|')));
   throw new Error(`unexpected request: ${url}`);
 });

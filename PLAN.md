@@ -27,12 +27,17 @@ Key pieces:
   articles with no lead image, from the REST `media-list` gallery set.
 - `src/lib/draw.ts` — `buildPack()`: fill a candidate bucket per rarity from the
   right source, hand it to the unchanged pure `generatePack()` (pack.ts), then
-  fetch an exact link count per chosen card. Sources: common ← `generator=random`;
-  rare/mythic ← pageviews *top* lists; uncommon ← top-list tails + links harvested
-  off popular articles.
-- `src/lib/packQueue.ts` — up to 10 fully-built packs kept ready in the background,
-  persisted to `localStorage`. `take()` is synchronous; the queue refills after.
-  Empty queue + API error ⇒ PackOpener shows an error + Retry.
+  fetch link counts for the chosen 7 in **one batched call** (`wiki.linkCounts`,
+  parallel exact fallback for the pages the 500-link batch truncated). Sources:
+  common ← `generator=random`; rare/mythic ← pageviews *top* lists; uncommon ←
+  top-list tails + links harvested off popular articles. Buckets and sourcing
+  progress are **persisted** (`wikitcg:candidates:v1`); `warmBuckets()` stocks
+  them past one pack's worth while idle so most builds do no sourcing. A shared
+  lock serialises `buildPack` and `warmBuckets`.
+- `src/lib/packQueue.ts` — ~5 fully-built packs kept ready in the background,
+  persisted to `localStorage`. `take()` is synchronous; the queue refills after
+  and then calls `warmBuckets()`. An empty queue flips fetch mode to `fg` and
+  builds the next pack "quick"; empty queue + API error ⇒ PackOpener error + Retry.
 - `src/lib/collection.ts` — v2 store; entries carry the full `Card` (no pool to
   look them up in). `computeProgress` is counts only (no completion %).
 - **Rarity thresholds** unchanged in `src/lib/rarity.ts`: `uncommon 10k / rare 150k
@@ -126,10 +131,11 @@ Static SPA. No server, no API keys, no bundled data. Browser only.
 **Why live works despite the guaranteed distribution.** A known population per
 rarity is still needed — `list=random` alone can't fill the rare slot. The fix is
 **per-slot sources**: `generator=random` for commons, the pageviews *top* lists for
-rare/mythic, link-harvesting for the uncommon middle. Latency (keep fetching for a
-real uncommon; one `parse` call per card for exact links) is hidden behind the
-background **prefetch queue** of 10 packs, so opening is instant. No offline mode:
-empty queue + unreachable API ⇒ error + retry.
+rare/mythic, link-harvesting for the uncommon middle. Latency is hidden behind the
+background **prefetch queue** of ~5 packs + persisted candidate buckets, and the
+per-pack call count is kept low (batched link counts, ≤3 concurrent, circuit
+breaker) so a build is seconds not minutes. No offline mode: empty queue +
+unreachable API ⇒ error + retry.
 
 ---
 
@@ -379,7 +385,7 @@ wikitcg/
     lib/
       wiki.ts           # browser Wikimedia client (fetch helpers, toCard)
       draw.ts           # buildPack(): per-rarity sourcing + generatePack()
-      packQueue.ts      # background prefetch of up to 10 ready packs
+      packQueue.ts      # background prefetch of ~5 ready packs + persistent candidate buckets
       rarity.ts         # thresholds + stat formulas (pure, tested)
       pack.ts           # generatePack(): 4C/2U/1R modal, per-slot upgrade rolls (pure, tested)
       collection.ts     # persisted store (v2: stores full Card) + computeProgress
@@ -508,8 +514,11 @@ by Elo. Lives in its own lazily-loaded chunk so the core game is untouched.
 - **Action API needs `origin=*` in the URL** or the request fails CORS — easy to
   forget. Do **not** add custom request headers (e.g. `Api-User-Agent`) from the
   browser — that triggers a preflight the API doesn't answer.
-- **Rate limits:** make requests in series (250 ms gap in `wiki.ts`), honour
-  `Retry-After` on 429. The background queue absorbs the latency.
+- **Rate limits:** `wiki.ts` runs ≤3 concurrent with a small gap, honours a
+  *capped* `Retry-After` on 429, and trips a **circuit breaker** (fail fast for
+  ~20 s) after a run of 429s so a rate-limit episode can't drag a build into
+  minutes. Foreground vs background fetch modes trade retries for speed. The
+  background queue + persisted candidate buckets (`warmBuckets`) absorb latency.
 - **`pageviews` trailing `null`** for the current day — filter before summing.
 - **`parse&prop=links`** includes templates/categories/files and redlinks — filter to
   `ns 0 && exists`.

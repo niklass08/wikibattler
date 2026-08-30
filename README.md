@@ -43,10 +43,21 @@ When an article has no lead image of its own, `wiki.backupImage()` pulls the fir
 "content" image from the REST media-list (Wikipedia's own curated gallery set);
 articles with nothing usable get a title-tinted typographic card.
 
-`src/lib/packQueue.ts` keeps up to 10 fully-built packs ready in the background
-(persisted to `localStorage`), so opening one is instant even though a build makes
-~15–20 throttled API calls (exact per-article link counts + image lookups). If the
-API is unreachable and the queue is empty, the pack screen shows an error + retry.
+`src/lib/packQueue.ts` keeps ~5 fully-built packs ready in the background
+(persisted to `localStorage`), so opening one is instant. To keep builds fast:
+
+- **candidate buckets are pre-stocked and persisted** (`wikitcg:candidates:v1`) —
+  `warmBuckets()` fills them past what one pack needs while idle, so most builds
+  do little or no article sourcing;
+- **link counts are one batched call** (`wiki.linkCounts`), with a parallel exact
+  fallback only for pages the 500-link batch budget truncated;
+- requests run at **≤3 concurrent** with a small gap, not strictly serial;
+- a **circuit breaker** in `wiki.ts` fails fast for ~20 s once Wikimedia starts
+  rate-limiting, instead of grinding through minutes of backoff;
+- the first pack for a waiting player is built in a **"quick" mode** (bare-minimum
+  sourcing) and the queue refines itself afterward.
+
+If the API is unreachable and the queue is empty, the pack screen shows an error + retry.
 
 Rarity/stat thresholds live in `src/lib/rarity.ts`.
 

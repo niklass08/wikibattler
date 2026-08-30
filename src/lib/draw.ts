@@ -25,6 +25,20 @@ import * as wiki from './wiki';
  */
 const TARGET: Record<Rarity, number> = { common: 7, uncommon: 5, rare: 4, mythic: 2 };
 
+/**
+ * A "quick" first pack after a cold start (empty queue, player waiting): stock
+ * the bare minimum so the first open is fast; the queue refills properly after.
+ */
+const QUICK_TARGET: Record<Rarity, number> = { common: 5, uncommon: 2, rare: 2, mythic: 1 };
+
+/**
+ * Background warm target — stock candidates well past what one pack needs so
+ * later builds do little or no sourcing. Filled by `warmBuckets()` while idle.
+ */
+const WARM_TARGET: Record<Rarity, number> = { common: 24, uncommon: 16, rare: 12, mythic: 8 };
+
+const CANDIDATES_KEY = 'wikitcg:candidates:v1';
+
 const shuffle = <T>(a: T[]): T[] => {
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -61,6 +75,74 @@ const topByRarity: Record<Rarity, wiki.TopArticle[]> = {
 };
 const topSeen = new Set<string>();
 const fetchedMonths = new Set<string>();
+
+// --- persistence: warm candidates survive a reload -------------------------
+
+let restored = false;
+
+function safeGet(k: string): string | null {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
+  }
+}
+function safeSet(k: string, v: string): void {
+  try {
+    localStorage.setItem(k, v);
+  } catch {
+    /* private mode / quota */
+  }
+}
+
+function restoreCandidates(): void {
+  if (restored) return;
+  restored = true;
+  try {
+    const raw = safeGet(CANDIDATES_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw) as {
+      buckets?: Record<Rarity, Candidate[]>;
+      topByRarity?: Record<Rarity, wiki.TopArticle[]>;
+      topSeen?: string[];
+      fetchedMonths?: string[];
+    };
+    for (const r of RARITIES) {
+      for (const c of s.buckets?.[r] ?? []) {
+        if (c?.page?.pageid && !usedIds.has(c.page.pageid) && !pendingIds.has(c.page.pageid)) {
+          buckets[r].push(c);
+          pendingIds.add(c.page.pageid);
+        }
+      }
+      for (const t of s.topByRarity?.[r] ?? []) topByRarity[r].push(t);
+    }
+    for (const t of s.topSeen ?? []) topSeen.add(t);
+    for (const m of s.fetchedMonths ?? []) fetchedMonths.add(m);
+  } catch {
+    /* ignore a corrupt blob */
+  }
+}
+
+function persistCandidates(): void {
+  safeSet(
+    CANDIDATES_KEY,
+    JSON.stringify({
+      buckets,
+      topByRarity,
+      topSeen: [...topSeen],
+      fetchedMonths: [...fetchedMonths]
+    })
+  );
+}
+
+// Serialise everything that mutates the shared buckets — a background
+// `warmBuckets()` must not run concurrently with a `buildPack()`.
+let chain: Promise<unknown> = Promise.resolve();
+function withLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = chain.then(fn, fn);
+  chain = run.catch(() => {});
+  return run;
+}
 
 function recentMonths(count: number, windowMonths: number): { y: number; m: number }[] {
   const base = new Date();
@@ -112,11 +194,11 @@ const looseEq = (a: string, b: string) =>
   a.replace(/ /g, '_').toLowerCase() === b.replace(/ /g, '_').toLowerCase();
 
 /** Top up one bucket to `need` candidates from its source. */
-async function topUp(rarity: Rarity, need: number): Promise<void> {
+async function topUp(rarity: Rarity, need: number, guardMax = 25): Promise<void> {
   let guard = 0;
-  while (buckets[rarity].length < need && guard++ < 25) {
+  while (buckets[rarity].length < need && guard++ < guardMax) {
     if (rarity === 'common') {
-      for (const page of await wiki.randomEnriched(12)) {
+      for (const page of await wiki.randomEnriched(20)) {
         stash(page, wiki.monthlyFromViews60(page.views60 ?? 0));
       }
       continue;
@@ -170,37 +252,22 @@ function toStub(c: Candidate): Card {
 }
 
 /**
- * Build one complete 7-card pack: stock every bucket, let generatePack() choose
- * the 7 with the guaranteed split, then fetch exact link counts for those 7.
+ * Stock the buckets to `targets`. `common` (random articles) is independent of
+ * the top-list group, so the two run in parallel; the top-list rarities share
+ * `topByRarity` and stay sequential among themselves.
  */
-export async function buildPack(): Promise<Card[]> {
-  // Sequential, not parallel — Wikimedia rate-limits bursts from anon clients.
-  for (const r of RARITIES) await topUp(r, TARGET[r]);
+async function stockBuckets(targets: Record<Rarity, number>, guardMax = 25): Promise<void> {
+  await Promise.all([
+    topUp('common', targets.common, guardMax),
+    (async () => {
+      await topUp('rare', targets.rare, guardMax);
+      await topUp('mythic', targets.mythic, guardMax);
+      await topUp('uncommon', targets.uncommon, guardMax);
+    })()
+  ]);
+}
 
-  const byId = new Map<number, Candidate>();
-  const pools: RarityPools = { common: [], uncommon: [], rare: [], mythic: [] };
-  for (const r of RARITIES) {
-    for (const c of buckets[r]) {
-      byId.set(c.page.pageid, c);
-      pools[r].push(toStub(c));
-    }
-  }
-
-  const chosen = generatePack(pools);
-  if (chosen.length < 7) {
-    throw new Error('Not enough Wikipedia articles to fill a pack — retrying.');
-  }
-
-  const cards: Card[] = [];
-  for (const stub of chosen) {
-    const cand = byId.get(stub.id)!;
-    usedIds.add(cand.page.pageid);
-    const links = await wiki.linkCount(cand.page.title);
-    // `pilicense=any` already covers most articles' lead art here; anything still
-    // imageless is resolved lazily (and persisted) by Card.svelte on reveal.
-    cards.push(wiki.toCard({ page: cand.page, monthlyViews: cand.monthlyViews, links }));
-  }
-
+function dropConsumed(): void {
   for (const r of RARITIES) {
     buckets[r] = buckets[r].filter((c) => {
       const consumed = usedIds.has(c.page.pageid);
@@ -208,8 +275,79 @@ export async function buildPack(): Promise<Card[]> {
       return !consumed;
     });
   }
+}
 
-  return applyMythicSignatures(applyPackFoil(cards));
+/**
+ * Build one complete 7-card pack: stock every bucket, let generatePack() choose
+ * the 7 with the guaranteed split, then fetch link counts for those 7 — one
+ * batched call, with a parallel exact fallback for any the batch truncated.
+ */
+export function buildPack(opts: { quick?: boolean } = {}): Promise<Card[]> {
+  return withLock(async () => {
+    restoreCandidates();
+    await stockBuckets(opts.quick ? QUICK_TARGET : TARGET);
+
+    const byId = new Map<number, Candidate>();
+    const pools: RarityPools = { common: [], uncommon: [], rare: [], mythic: [] };
+    for (const r of RARITIES) {
+      for (const c of buckets[r]) {
+        byId.set(c.page.pageid, c);
+        pools[r].push(toStub(c));
+      }
+    }
+
+    const chosen = generatePack(pools);
+    if (chosen.length < 7) {
+      throw new Error('Not enough Wikipedia articles to fill a pack — retrying shortly.');
+    }
+
+    const cands = chosen.map((stub) => byId.get(stub.id)!);
+    for (const c of cands) usedIds.add(c.page.pageid);
+
+    const counts = await wiki.linkCounts(cands.map((c) => c.page.title));
+    const cards = await Promise.all(
+      cands.map(async (cand) => {
+        let links =
+          counts.get(cand.page.title) ??
+          [...counts].find(([k]) => looseEq(k, cand.page.title))?.[1];
+        if (links === undefined) {
+          links = await wiki.linkCount(cand.page.title).catch(() => 0);
+        }
+        // `pilicense=any` covers most lead art; the rest is resolved lazily
+        // (and persisted) by Card.svelte on reveal.
+        return wiki.toCard({ page: cand.page, monthlyViews: cand.monthlyViews, links });
+      })
+    );
+
+    dropConsumed();
+    persistCandidates();
+    return applyMythicSignatures(applyPackFoil(cards));
+  });
+}
+
+/**
+ * Idle-time work: stock candidates past what one pack needs so later builds do
+ * little or no sourcing. Bounded per call (adds a few per rarity) so it never
+ * blocks a waiting `buildPack` for long — the queue calls it repeatedly.
+ */
+export function warmBuckets(): Promise<void> {
+  return withLock(async () => {
+    restoreCandidates();
+    const step: Record<Rarity, number> = {
+      common: Math.min(buckets.common.length + 8, WARM_TARGET.common),
+      uncommon: Math.min(buckets.uncommon.length + 6, WARM_TARGET.uncommon),
+      rare: Math.min(buckets.rare.length + 5, WARM_TARGET.rare),
+      mythic: Math.min(buckets.mythic.length + 4, WARM_TARGET.mythic)
+    };
+    if (RARITIES.every((r) => buckets[r].length >= step[r])) return;
+    await stockBuckets(step, 6);
+    persistCandidates();
+  });
+}
+
+/** True once every bucket has enough for a pack without any sourcing. */
+export function bucketsWarm(): boolean {
+  return RARITIES.every((r) => buckets[r].length >= TARGET[r]);
 }
 
 /** Test hook — reset all session state. */
@@ -222,4 +360,6 @@ export function _resetSession(): void {
   pendingIds.clear();
   topSeen.clear();
   fetchedMonths.clear();
+  restored = false;
+  chain = Promise.resolve();
 }
