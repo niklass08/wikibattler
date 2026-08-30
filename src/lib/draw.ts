@@ -36,6 +36,8 @@ const PACK_SIZE = 7;
 interface Candidate {
   page: wiki.WikiPage;
   monthlyViews: number;
+  /** exact ns-0 link count, resolved in the background; estimated until then */
+  links?: number;
 }
 
 type Buckets = Record<Rarity, Candidate[]>;
@@ -53,12 +55,10 @@ const QUICK_BUDGET = 3;
 
 /**
  * Themed: a pool is "stocked" when every band it can supply meets its quota
- * (see BAND_QUOTA) and it holds at least this many candidates. The budget is 3
- * because there are three bands to cover — a tighter one would leave a band
- * empty and produce a pack that is all one rarity.
+ * (see BAND_QUOTA) and it holds at least this many candidates. The stocker
+ * sources one band per step, so all three get covered across steps.
  */
 const THEMED_MIN = 9;
-const THEMED_BUDGET = 3;
 
 const CANDIDATES_KEY = 'wikitcg:candidates:v2';
 const THEMED_KEY = 'wikitcg:themed-candidates:v1';
@@ -331,8 +331,8 @@ async function sourceOne(rarity: Rarity): Promise<number> {
  * fallen below `MIN` — so most pack builds cost nothing. `budget` caps the
  * requests one pass may spend.
  */
-async function fillRandom(budget: number, force = false): Promise<void> {
-  if (!force && !RARITIES.some((r) => buckets[r].length < MIN[r])) return;
+async function fillRandom(budget: number, force = false): Promise<number> {
+  if (!force && !RARITIES.some((r) => buckets[r].length < MIN[r])) return 0;
 
   let spent = 0;
 
@@ -353,6 +353,7 @@ async function fillRandom(budget: number, force = false): Promise<void> {
       spent += used;
     }
   }
+  return spent;
 }
 
 // --- themed sourcing --------------------------------------------------------
@@ -472,50 +473,7 @@ async function stockThemed(theme: Tag, budget: number): Promise<void> {
   }
 }
 
-// --- assembly ---------------------------------------------------------------
-
-/**
- * The theme-agnostic tail: let `generatePack()` choose the 7 with the guaranteed
- * split, resolve strength, and apply the finishes.
- */
-async function assembleFrom(source: Buckets, forceTag?: Tag): Promise<Card[]> {
-  const byId = new Map<number, Candidate>();
-  const pools: RarityPools = { common: [], uncommon: [], rare: [], mythic: [] };
-  for (const r of RARITIES) {
-    for (const c of source[r]) {
-      byId.set(c.page.pageid, c);
-      pools[r].push(toStub(c));
-    }
-  }
-
-  const chosen = generatePack(pools);
-  const cands = chosen.map((stub) => byId.get(stub.id)!);
-  for (const c of cands) usedIds.add(c.page.pageid);
-
-  const cards = await Promise.all(
-    cands.map(async (cand) => {
-      const rarity = rarityFromViews(cand.monthlyViews);
-      // Strength is the internal link count. An exact count is one `parse` call
-      // each, so only rare/mythic — where the stat is battle-relevant and there
-      // are at most one or two per pack — earn one.
-      const links =
-        rarity === 'rare' || rarity === 'mythic'
-          ? await wiki.linkCount(cand.page.title).catch(() => estLinks(cand.page))
-          : estLinks(cand.page);
-      // `pilicense=any` covers most lead art; the rest is resolved lazily (and
-      // persisted) by Card.svelte on reveal.
-      const card = wiki.toCard({ page: cand.page, monthlyViews: cand.monthlyViews, links });
-      if (forceTag) {
-        // the pack's theme is authoritative (infobox-sourced) — lead with it
-        card.tags = [forceTag, ...card.tags.filter((t) => t !== forceTag)].slice(0, 4);
-      }
-      return card;
-    })
-  );
-
-  dropConsumed(source);
-  return applyMythicSignatures(applyPackFoil(cards));
-}
+// --- assembly (synchronous — never touches the network) ---------------------
 
 function toStub(c: Candidate): Card {
   return {
@@ -535,69 +493,169 @@ function toStub(c: Candidate): Card {
   };
 }
 
+/**
+ * Turn pooled candidates into a finished pack. **Synchronous and network-free**
+ * — link counts were resolved by the background stocker, so this is a pure
+ * function of the pool and cannot interleave with it.
+ */
+function assembleSync(source: Buckets, forceTag?: Tag): Card[] {
+  const byId = new Map<number, Candidate>();
+  const pools: RarityPools = { common: [], uncommon: [], rare: [], mythic: [] };
+  for (const r of RARITIES) {
+    for (const c of source[r]) {
+      byId.set(c.page.pageid, c);
+      pools[r].push(toStub(c));
+    }
+  }
+
+  const chosen = generatePack(pools);
+  const cands = chosen.map((stub) => byId.get(stub.id)!);
+  for (const c of cands) usedIds.add(c.page.pageid);
+
+  const cards = cands.map((cand) => {
+    // an exact count if the stocker got to it, otherwise the estimate
+    const links = cand.links ?? estLinks(cand.page);
+    // `pilicense=any` covers most lead art; the rest is resolved lazily (and
+    // persisted) by Card.svelte on reveal.
+    const card = wiki.toCard({ page: cand.page, monthlyViews: cand.monthlyViews, links });
+    if (forceTag) {
+      // the pack's theme is authoritative (infobox-sourced) — lead with it
+      card.tags = [forceTag, ...card.tags.filter((t) => t !== forceTag)].slice(0, 4);
+    }
+    return card;
+  });
+
+  dropConsumed(source);
+  return applyMythicSignatures(applyPackFoil(cards));
+}
+
+// --- readiness --------------------------------------------------------------
+
+/** A pack wants 4 commons, 2 uncommons and a rare — plus slack for upgrade rolls. */
+const READY_NEED: Record<Band, number> = { 0: 1, 1: 2, 2: 4 };
+
+/**
+ * Can a pack be assembled from this pool right now, with no network? A band the
+ * theme has proven it cannot supply (`dry`) is treated as satisfied — a pack
+ * from such a theme legitimately leans on `generatePack`'s rarity fallback.
+ */
+function canAssemble(b: Buckets, dry?: ThemeState['dry']): boolean {
+  if (countAll(b) < PACK_SIZE) return false;
+  return BANDS.every((band) => (dry && dry[band] >= 2) || bandHave(b, band) >= READY_NEED[band]);
+}
+
+function poolFor(theme?: Tag | null): { buckets: Buckets; dry?: ThemeState['dry'] } {
+  if (!theme) return { buckets };
+  const s = themeState(theme);
+  return { buckets: s.buckets, dry: s.dry };
+}
+
+/** True when `theme` (or the random pool) can produce a pack instantly. */
+export function poolReady(theme?: Tag | null): boolean {
+  restoreCandidates();
+  const { buckets: b, dry } = poolFor(theme);
+  return canAssemble(b, dry);
+}
+
+/** How many candidates are pooled for `theme` (or the random pool). */
+export function poolCount(theme?: Tag | null): number {
+  restoreCandidates();
+  return countAll(poolFor(theme).buckets);
+}
+
+/** True once the pool is stocked well past a single pack — nothing left to do. */
+export function poolFull(theme?: Tag | null): boolean {
+  restoreCandidates();
+  if (!theme) return RARITIES.every((r) => buckets[r].length >= FILL[r]);
+  const s = themeState(theme);
+  return bandNeed(s) === null && countAll(s.buckets) >= THEMED_MIN;
+}
+
 // --- public API -------------------------------------------------------------
 
-/** Build one complete 7-card pack — random by default, or `theme`-locked. */
-export function buildPack(opts: { quick?: boolean; theme?: Tag } = {}): Promise<Card[]> {
+/**
+ * Assemble a pack from the pool **right now**, or null if the pool can't cover
+ * one yet. Synchronous: no request is made, so a stocked pool opens instantly.
+ */
+export function assemblePack(theme?: Tag | null): Card[] | null {
+  restoreCandidates();
+  const { buckets: b, dry } = poolFor(theme);
+  if (!canAssemble(b, dry)) return null;
+  const cards = assembleSync(b, theme ?? undefined);
+  if (theme) persistThemed();
+  else persistCandidates();
+  return cards;
+}
+
+/**
+ * One unit of background work for `theme` (null = the random pool): a single
+ * sourcing request, or — when the pool is already stocked — resolving one
+ * pooled card's exact link count so assembly stays network-free.
+ *
+ * Returns the requests spent; 0 means there is nothing useful left to do.
+ */
+export function stockStep(theme?: Tag | null): Promise<number> {
   return withLock(async () => {
     restoreCandidates();
 
-    if (opts.theme) {
-      const s = themeState(opts.theme);
-      await stockThemed(opts.theme, THEMED_BUDGET);
-      if (countAll(s.buckets) < PACK_SIZE) {
-        throw new Error(
-          `Not enough ${THEMES[opts.theme].label} articles to fill a pack — retrying shortly.`
-        );
+    if (theme) {
+      const s = themeState(theme);
+      if (bandNeed(s) !== null) {
+        await stockThemed(theme, 1);
+        persistThemed();
+        return 1;
       }
-      const cards = await assembleFrom(s.buckets, opts.theme);
-      persistThemed();
-      return cards;
+      const spent = await resolveOneLinkCount(s.buckets);
+      if (spent) persistThemed();
+      return spent;
     }
 
-    await fillRandom(opts.quick ? QUICK_BUDGET : BUDGET);
-    if (countAll(buckets) < PACK_SIZE) {
-      throw new Error('Not enough Wikipedia articles to fill a pack — retrying shortly.');
+    if (RARITIES.some((r) => buckets[r].length < FILL[r])) {
+      const spent = await fillRandom(2, true);
+      persistCandidates();
+      if (spent > 0) return spent;
     }
-    const cards = await assembleFrom(buckets);
-    persistCandidates();
-    return cards;
+    const spent = await resolveOneLinkCount(buckets);
+    if (spent) persistCandidates();
+    return spent;
   });
 }
 
 /**
- * Idle-time top-up of the random pool, past what one pack needs, so later builds
- * do no sourcing at all. Bounded per call — the queue calls it repeatedly.
+ * Give one pooled rare/mythic its exact link count. Strength is the internal
+ * link count and an exact figure is one `parse` call, so the stocker pays for
+ * them in the background rather than making the player wait at assembly time.
  */
-export function warmBuckets(): Promise<void> {
-  return withLock(async () => {
-    restoreCandidates();
-    if (RARITIES.every((r) => buckets[r].length >= FILL[r])) return;
-    await fillRandom(2, true);
-    persistCandidates();
-  });
+async function resolveOneLinkCount(source: Buckets): Promise<number> {
+  for (const r of ['mythic', 'rare'] as const) {
+    const cand = source[r].find((c) => c.links === undefined);
+    if (!cand) continue;
+    cand.links = await wiki.linkCount(cand.page.title).catch(() => estLinks(cand.page));
+    return 1;
+  }
+  return 0;
 }
 
-/** Idle-time top-up of one theme's pool. */
-export function warmTheme(theme: Tag): Promise<void> {
-  return withLock(async () => {
-    restoreCandidates();
-    const s = themeState(theme);
-    if (bandNeed(s) === null) return;
-    await stockThemed(theme, 1);
-    persistThemed();
-  });
-}
-
-/** True once the random pool needs no sourcing for the next several packs. */
-export function bucketsWarm(): boolean {
-  return RARITIES.every((r) => buckets[r].length >= FILL[r]);
-}
-
-/** True once `theme`'s pool needs no sourcing for the next several packs. */
-export function themeWarm(theme: Tag): boolean {
-  const s = themeState(theme);
-  return bandNeed(s) === null && countAll(s.buckets) >= THEMED_MIN;
+/**
+ * Stock until a pack can be assembled, then assemble it. The background stocker
+ * normally gets there first — this is the blocking fallback for a cold start
+ * (and what the tests drive).
+ */
+export async function buildPack(opts: { quick?: boolean; theme?: Tag } = {}): Promise<Card[]> {
+  const theme = opts.theme ?? null;
+  const budget = opts.quick ? QUICK_BUDGET : BUDGET;
+  for (let i = 0; i < budget && !poolReady(theme); i++) {
+    if ((await stockStep(theme)) === 0) break;
+  }
+  const pack = assemblePack(theme);
+  if (!pack) {
+    throw new Error(
+      theme
+        ? `Not enough ${THEMES[theme].label} articles to fill a pack — retrying shortly.`
+        : 'Not enough Wikipedia articles to fill a pack — retrying shortly.'
+    );
+  }
+  return pack;
 }
 
 /** Test hook — reset all session state. */

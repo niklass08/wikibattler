@@ -4,7 +4,7 @@
   import { fly, scale } from 'svelte/transition';
   import { flip } from 'svelte/animate';
   import { collection, packsOpened } from '../lib/collection';
-  import { take, retry, status as queueStatus, MAX_PREFETCH } from '../lib/packQueue';
+  import { take, retry, status as queueStatus } from '../lib/packQueue';
   import { activePack, ownedPacks, ownedThemes, type ActivePack } from '../lib/shop';
   import { THEMES } from '../lib/themes';
   import { view } from '../stores/view';
@@ -77,10 +77,10 @@
     else pendingOpen = true;
   }
 
-  // Resolve a pending open once the background queue catches up.
+  // Resolve a pending open the moment the background stocker has enough cards.
   $effect(() => {
     if (!pendingOpen) return;
-    if ($queueStatus.ready > 0) {
+    if ($queueStatus.ready) {
       const ready = take();
       if (ready) startReveal(ready);
     }
@@ -123,7 +123,7 @@
         type="button"
         onclick={openPack}
         aria-label="Open pack"
-        disabled={!!switching && $queueStatus.ready === 0}
+        disabled={!!switching && !$queueStatus.ready}
       >
         <span class="pane"></span><span class="pane"></span>
         <span class="pane top"><CardBack accent={deck?.color} icon={deck?.icon} /></span>
@@ -163,13 +163,16 @@
           guaranteed rare — and every card rolls to upgrade, the deeper the better.
         {/if}
       </p>
-      <button class="btn" onclick={openPack} disabled={!!switching && $queueStatus.ready === 0}>
+      <button class="btn" onclick={openPack} disabled={!!switching && !$queueStatus.ready}>
         {switching ? 'Shuffling…' : 'Open pack'}
       </button>
       <p class="tally mono">
         {$packsOpened} opened
-        {#if $queueStatus.ready < MAX_PREFETCH && !$queueStatus.error}
-          · {$queueStatus.ready}/{MAX_PREFETCH} ready
+        {#if !$queueStatus.error}
+          · {$queueStatus.ready ? 'ready' : 'stocking'}
+          {#if $queueStatus.stocked > 0}
+            · {$queueStatus.stocked} card{$queueStatus.stocked === 1 ? '' : 's'} in stock
+          {/if}
         {/if}
       </p>
     </div>

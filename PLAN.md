@@ -31,6 +31,11 @@ Key pieces:
   bytes **and category count** for the rest (`estLinks`; category count keeps
   strength from becoming a function of defence, which is bytes).
 
+  **Assembly never touches the network** — `assemblePack()` is synchronous, so it
+  cannot race the stocker, and exact link counts are resolved ahead of time by
+  `stockStep()` (which sources when a band is short and otherwise resolves one
+  pooled rare/mythic's `parse` link count).
+
   **Pooling is the performance design.** `fillRandom()` returns immediately
   unless a bucket fell below `MIN`, then stocks to `FILL` — so one batched pass
   (~20 candidates per request) feeds several packs and most builds do zero
@@ -40,12 +45,15 @@ Key pieces:
   rare/mythic ← pageviews *top* lists; uncommon ← top-list tails then a **pooled**
   link harvest (one `parse` of a popular article yields hundreds of titles,
   enriched 20 at a time). Pools persist (`wikitcg:candidates:v2`);
-  `warmBuckets()` / `warmTheme()` top up while the player reads a pack. A shared
-  lock serialises builds and warms.
-- `src/lib/packQueue.ts` — ~3 fully-built packs kept ready in the background,
-  persisted to `localStorage`. `take()` is synchronous; the queue refills after
-  and then calls `warmBuckets()`. An empty queue flips fetch mode to `fg` and
-  builds the next pack "quick"; empty queue + API error ⇒ PackOpener error + Retry.
+  A shared lock serialises stocking; assembly is synchronous so it cannot race.
+- `src/lib/packQueue.ts` — the **background stocker**. Packs are not pre-built:
+  it runs for the life of the session (whatever view is showing) keeping a *pool
+  of cards* stocked for random and for every theme the player owns packs for,
+  and `take()` → `draw.assemblePack()` builds the pack **synchronously from that
+  pool**, with no request. Priority per tick: the active type (urgently if its
+  pool can't cover a pack), then owned themes, then random; idles when stocked.
+  Re-targets on `activePack` / `ownedPacks` changes. Pool short + API error ⇒
+  PackOpener error + Retry.
 - `src/lib/collection.ts` — v2 store; entries carry the full `Card` (no pool to
   look them up in). `computeProgress` is counts only (no completion %).
 - **Rarity thresholds** unchanged in `src/lib/rarity.ts`: `uncommon 10k / rare 150k
@@ -124,12 +132,13 @@ Static SPA. No server, no API keys, no bundled data. Browser only.
      │
   src/lib/wiki.ts      origin=*, throttled, retrying fetch helpers
      │
-  src/lib/draw.ts      buildPack(): stock a bucket per rarity from the right
-     │                 source, then generatePack() (pack.ts, pure, unchanged)
-     │                 picks the 7 (4C/2U/1R modal, per-slot upgrade rolls)
-  src/lib/packQueue.ts up to 10 packs kept ready in the background,
-     │                 persisted to localStorage
-  PackOpener.svelte    take() a ready pack instantly → stacked-deck reveal
+  src/lib/draw.ts      a POOL of candidates per rarity, per pack type.
+     │                 stockStep() tops it up; assemblePack() is synchronous and
+     │                 hands generatePack() (pack.ts, pure, unchanged) the 7
+     │                 (4C/2U/1R modal, per-slot upgrade rolls)
+  src/lib/packQueue.ts background stocker — runs on every view, keeps the pools
+     │                 full, prioritises the type the player has selected
+  PackOpener.svelte    take() assembles from stock instantly → stacked-deck reveal
      │
   collection store (localStorage, v2 — stores the full Card)
      │
@@ -140,7 +149,7 @@ Static SPA. No server, no API keys, no bundled data. Browser only.
 rarity is still needed — `list=random` alone can't fill the rare slot. The fix is
 **per-slot sources**: `generator=random` for commons, the pageviews *top* lists for
 rare/mythic, link-harvesting for the uncommon middle. Latency is hidden behind the
-background **prefetch queue** of ~3 packs + persisted candidate buckets, and the
+background **card-pool stocker** + persisted candidate pools, and the
 per-pack call count is kept low (serial requests, exact link counts only for
 rare/mythic, a sustained-block circuit breaker) so a browser client stays off
 Wikimedia's 429 list. No offline mode: empty queue + unreachable API ⇒ error + retry.
@@ -493,10 +502,10 @@ Export/import collection as JSON — nice, cheap, do it if time allows.
   candidates ⇒ several packs. Cursors advance, so no page is ever re-fetched.
   Pools persist (`wikitcg:themed-candidates:v1`). The theme tag is forced onto
   every card (`assembleFrom` `forceTag`).
-- **`packQueue`** subscribes to `activePack` + `ownedPacks`: `target()` caps a
-  themed queue at `min(owned, MAX_PREFETCH)`; a type switch bumps `switchGen`
-  (discards stale in-flight builds), stashes the old queue in memory, rebuilds;
-  persists `{ tag, packs }`.
+- **`packQueue`** is the background stocker (see §0): it subscribes to
+  `activePack` + `ownedPacks` and keeps a card pool stocked per pack type,
+  prioritising the selected one. No packs are pre-built — `take()` assembles
+  from stock synchronously.
 - **`generator=search` verified** to return `pageviews` + `categories` — no
   `enrichTitles` fallback needed. Niche themes (disease/scientists/vehicles/plants)
   are noisier: the guaranteed rare can degrade to a promoted uncommon via the

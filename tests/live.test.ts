@@ -7,7 +7,7 @@ import {
   _setMinGap,
   type WikiPage
 } from '../src/lib/wiki';
-import { buildPack, _resetSession } from '../src/lib/draw';
+import { buildPack, assemblePack, poolReady, stockStep, _resetSession } from '../src/lib/draw';
 
 _setMinGap(0);
 
@@ -224,12 +224,9 @@ describe('buildPack (live assembly)', () => {
       expect(order.indexOf(c.rarity)).toBeGreaterThanOrEqual(order.indexOf(base[i]))
     );
 
-    // rare/mythic get an exact link count (parse call → 150); common/uncommon
-    // estimate from byte length (no extra request)
-    for (const c of pack) {
-      if (c.rarity === 'rare' || c.rarity === 'mythic') expect(c.raw.links).toBe(150);
-      else expect(c.raw.links).toBeGreaterThan(0);
-    }
+    // assembly is network-free, so every card has a link count already —
+    // exact where the background stocker got to it, estimated otherwise
+    for (const c of pack) expect(c.raw.links).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalled();
   }, 30_000);
 
@@ -331,5 +328,61 @@ describe('buildPack (cold quick build)', () => {
     const pack = await buildPack({ quick: true });
     expect(pack).toHaveLength(7);
     expect(pack.filter((c) => c.rarity === 'common').length).toBeGreaterThanOrEqual(2);
+  }, 30_000);
+});
+
+// Packs are assembled from a pool of already-fetched cards, so opening one must
+// never wait on the network; the background stocker does all the fetching.
+describe('assemble-on-demand', () => {
+  beforeEach(() => {
+    _resetSession();
+    fetchMock.mockClear();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('assemblePack is null on a cold pool and never fetches', async () => {
+    expect(poolReady()).toBe(false);
+    expect(assemblePack()).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('once stocked, assembling a pack costs zero requests', async () => {
+    for (let i = 0; i < 8 && !poolReady(); i++) await stockStep(null);
+    expect(poolReady()).toBe(true);
+
+    fetchMock.mockClear();
+    const pack = assemblePack();
+    expect(pack).toHaveLength(7);
+    expect(fetchMock).not.toHaveBeenCalled();
+  }, 30_000);
+
+  it('the same holds for a theme — seven religion cards in stock open instantly', async () => {
+    for (let i = 0; i < 8 && !poolReady('religion'); i++) await stockStep('religion');
+    expect(poolReady('religion')).toBe(true);
+
+    fetchMock.mockClear();
+    const pack = assemblePack('religion');
+    expect(pack).toHaveLength(7);
+    for (const c of pack!) expect(c.tags).toContain('religion');
+    expect(fetchMock).not.toHaveBeenCalled();
+  }, 30_000);
+
+  it('the stocker resolves exact link counts once the pool is stocked', async () => {
+    for (let i = 0; i < 8 && !poolReady(); i++) await stockStep(null);
+    // keep stepping — with the pool full, the only work left is link counts;
+    // step until there is none, so every pooled rare/mythic is resolved
+    for (let i = 0; i < 40; i++) {
+      if ((await stockStep(null)) === 0) break;
+    }
+
+    const parses = fetchMock.mock.calls.filter((c) => String(c[0]).includes('action=parse'));
+    expect(parses.length).toBeGreaterThan(0);
+
+    // a pack assembled now carries exact counts for its rare/mythic cards
+    const pack = assemblePack()!;
+    const exact = pack.filter((c) => c.rarity === 'rare' || c.rarity === 'mythic');
+    expect(exact.length).toBeGreaterThan(0);
+    for (const c of exact) expect(c.raw.links).toBe(150);
   }, 30_000);
 });

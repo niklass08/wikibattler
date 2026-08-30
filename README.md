@@ -45,22 +45,36 @@ When an article has no lead image of its own, `wiki.backupImage()` pulls the fir
 "content" image from the REST media-list (Wikipedia's own curated gallery set);
 articles with nothing usable get a title-tinted typographic card.
 
-### The candidate pool
+### The card pool and the background stocker
 
-Wikimedia rate-limits anonymous browser clients hard, so the engine is built
-around **pooling**: sourcing is batched (one request yields ~20 candidates) and a
-single pass stocks several packs. **Most builds do no network at all** — they
-just draw from the pool.
+Packs are **not** pre-built. `src/lib/packQueue.ts` runs a background stocker for
+the whole life of the session — whatever view the player is on — keeping a
+**pool of cards** topped up for the random pack and for every theme the player
+holds packs for. When the player clicks, `assemblePack()` builds the pack out of
+that pool **synchronously, with no request at all**: if seven religion cards are
+already in stock, the religion pack opens instantly.
+
+The stocker re-targets on every pack-type switch and every purchase. Its
+priority each tick is: the type the player is about to open (aggressively, if
+its pool can't cover a pack yet), then the themes they own, then random — so
+switching back and forth is instant too. It idles once everything is stocked.
+
+Because assembly must not touch the network, exact link counts (one `parse`
+call per rare/mythic card) are resolved **by the stocker in the background**;
+a card assembled before its turn falls back to the estimate.
+
+Wikimedia rate-limits anonymous browser clients hard, so sourcing is batched
+(one request yields ~20 candidates) and a single pass stocks several packs.
 
 - a rarity is only sourced once it drops below `MIN`, and is then stocked to
-  `FILL` (`src/lib/draw.ts`);
+  `FILL` (`src/lib/draw.ts`); `stockStep()` is one unit of that work;
 - sourcing runs in two phases — one step per starved band first (so even a cold
   "quick" build yields all four rarities), then deepening with the leftover
   budget. Every pass has a hard request `BUDGET`;
 - the uncommon link harvest is **pooled**: one `parse` of a popular article
   yields hundreds of mid-popularity titles, enriched 20 at a time;
-- pools persist (`wikitcg:candidates:v2`, `wikitcg:themed-candidates:v1`), and
-  `warmBuckets()` / `warmTheme()` top them up while the player reads a pack;
+- pools persist (`wikitcg:candidates:v2`, `wikitcg:themed-candidates:v1`), so a
+  reload opens instantly too;
 - **requests are serial** — `wiki.ts` runs 1 in flight with a ~500 ms gap
   (Wikimedia's ask for anon clients);
 - **exact link counts only for rare/mythic** (one `parse` each); the rest
@@ -69,9 +83,8 @@ just draw from the pool.
 - a **circuit breaker** trips only on a *sustained* block (a 429 surviving all
   its backoffs), then fails fast for 30 s so a retry storm can't build.
 
-`src/lib/packQueue.ts` keeps ~3 fully-built packs ready in the background
-(persisted), so opening one is instant. If the API is rate-limiting / unreachable
-and the queue is empty, the pack screen shows an error + retry.
+If the API is rate-limiting / unreachable and the pool is short, the pack screen
+shows an error + retry.
 
 Rarity/stat thresholds live in `src/lib/rarity.ts`.
 
@@ -84,7 +97,7 @@ Rarity/stat thresholds live in `src/lib/rarity.ts`.
   (`wikitcg:knowledge:v1`, `:owned-packs:v1`, `:active-pack:v1`) + `buyPacks()`.
 - **`src/lib/themes.ts`** — per-theme colour + icon + the `gsrsearch` query that
   sources on-theme candidates.
-- **Thematic pack building** (`draw.ts`): `buildPack({ theme })` sources by
+- **Thematic pack building** (`draw.ts`): themed sourcing goes by
   **infobox template** — `THEMES[t].infobox` is a `hastemplate:"Infobox film"`
   query, an authoritative topic signal with no keyword noise (a keyword `search`
   backs it up when a theme has no usable infobox).
@@ -105,9 +118,8 @@ Rarity/stat thresholds live in `src/lib/rarity.ts`.
   per theme (halved when a page comes back empty) so small themes page shallower.
 
   The theme tag is forced onto every card and the same `RarityPools` goes to the
-  unchanged `generatePack`. `packQueue` follows `activePack`, caps a themed queue
-  at the number owned, and stashes the other type's built packs for a fast
-  switch-back.
+  unchanged `generatePack`. The background stocker keeps every owned theme's pool
+  topped up, prioritising whichever one the player has selected.
 
 ## Deploy
 

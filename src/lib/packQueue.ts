@@ -1,209 +1,190 @@
 /**
- * Background prefetch of fully-assembled packs. Opening one pops it from the
- * front instantly; the queue refills in the background, so the slow-but-accurate
- * live path never blocks the player.
+ * The background stocker. It runs for the whole life of the app — whatever view
+ * the player is on — keeping a **pool of cards** topped up for the random pack
+ * and for every theme the player holds packs for.
  *
- * The queue always holds packs of the *currently active* type (`activePack`),
- * and never more themed packs than the player owns. Switching type stashes the
- * old queue in memory and rebuilds for the new one.
+ * Packs are not pre-built. `take()` assembles one out of the pool the moment the
+ * player asks, synchronously: if there are already seven religion cards in
+ * stock, the religion pack opens instantly. The stocker's whole job is making
+ * sure that is true before they click.
+ *
+ * Priority each tick: the pack type the player is about to open (aggressively,
+ * if its pool can't cover a pack yet), then the themes they own, then random.
  *
  * Nothing here touches the network at import time — only `start()` does.
  */
 import { get, writable } from 'svelte/store';
 import type { Card } from './types';
-import { buildPack, warmBuckets, bucketsWarm, warmTheme, themeWarm } from './draw';
-import { applyMythicSignatures } from './signature';
+import { assemblePack, poolReady, poolCount, poolFull, stockStep } from './draw';
+import type { Tag } from './tags';
 import { setFetchMode } from './wiki';
-import { activePack, ownedPacks, type ActivePack } from './shop';
+import { activePack, ownedPacks, ownedThemes, type ActivePack } from './shop';
 
-export const MAX_PREFETCH = 3;
-const KEY = 'wikitcg:packqueue:v1';
-/** After a failed refill, wait this long before an automatic retry. */
-const ERROR_COOLDOWN_MS = 8000;
+/** Cadence: how long to wait before the next unit of background work. */
+const TICK_URGENT = 150; // the player is waiting on a pool that can't build yet
+const TICK_ACTIVE = 1_500; // stocking ahead for the type they're on
+const TICK_IDLE = 20_000; // everything stocked — just poll for changes
+/** After a failed step, back off this long before trying again. */
+const ERROR_COOLDOWN_MS = 8_000;
 
 export interface QueueStatus {
-  ready: number;
+  /** a pack of the active type can be assembled right now */
+  ready: boolean;
+  /** candidates pooled for the active type */
+  stocked: number;
+  /** the stocker is fetching */
   warming: boolean;
   error: string | null;
-  /** non-null while the queue is rebuilding after a pack-type switch */
+  /** set while the pool for a newly-selected type is still filling */
   switching: ActivePack | null;
 }
 
 export const status = writable<QueueStatus>({
-  ready: 0,
+  ready: false,
+  stocked: 0,
   warming: false,
   error: null,
   switching: null
 });
 
-let queue: Card[][] = [];
-let running = false;
-/** a refill was requested while one was already running — run again when it ends */
-let wantRefill = false;
 let started = false;
+let running = false;
+let timer: ReturnType<typeof setTimeout> | undefined;
 let errorAt = 0;
-/** A player is waiting on an empty queue — build fast, be impatient with the API. */
-let urgent = false;
+/** the player has asked for a pack the pool can't cover yet */
+let waiting = false;
 
-/** Which pack type the queue currently holds. */
-let activeTag: ActivePack = 'random';
-/** Bumped on every type switch; an in-flight build whose gen is stale is discarded. */
-let switchGen = 0;
-/** In-memory only: the other types' already-built packs, kept for a fast switch-back. */
-const stash = new Map<ActivePack, Card[][]>();
+const themeOf = (p: ActivePack): Tag | null => (p === 'random' ? null : p);
 
-function isPack(p: unknown): p is Card[] {
-  return Array.isArray(p) && p.length === 7 && p.every((c) => c && typeof c === 'object' && 'id' in c);
+function publish(): void {
+  const active = themeOf(get(activePack));
+  const ready = poolReady(active);
+  status.update((s) => ({
+    ...s,
+    ready,
+    stocked: poolCount(active),
+    switching: ready ? null : s.switching
+  }));
 }
 
-/** How many packs the queue should hold right now. */
-function target(): number {
-  if (activeTag === 'random') return MAX_PREFETCH;
-  return Math.min(ownedPacks.count(activeTag), MAX_PREFETCH);
-}
+/**
+ * What to stock next. The type the player is about to open comes first; a type
+ * that can't build a pack yet outranks one that is merely topping up.
+ */
+function nextTarget(): { theme: Tag | null; urgent: boolean } | null {
+  const active = themeOf(get(activePack));
+  if (!poolReady(active)) return { theme: active, urgent: true };
 
-function persist(): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify({ tag: activeTag, packs: queue }));
-  } catch {
-    /* private mode / quota */
+  // then the active type again, stocking ahead
+  if (!poolFull(active)) return { theme: active, urgent: false };
+
+  // then any theme they hold packs for but couldn't open instantly
+  for (const t of ownedThemes(get(ownedPacks))) {
+    if (!poolReady(t)) return { theme: t, urgent: false };
   }
-  status.update((s) => ({ ...s, ready: queue.length }));
-}
-
-function restore(): void {
-  try {
-    const raw = localStorage.getItem(KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    // { tag, packs } — keep only if it matches the type we're about to serve
-    if (parsed && parsed.tag === activeTag && Array.isArray(parsed.packs)) {
-      queue = parsed.packs.filter(isPack);
-    } else {
-      queue = [];
-    }
-  } catch {
-    queue = [];
+  // then random, so switching back to it is instant too
+  if (!poolFull(null)) return { theme: null, urgent: false };
+  for (const t of ownedThemes(get(ownedPacks))) {
+    if (!poolFull(t)) return { theme: t, urgent: false };
   }
+  return null;
 }
 
-async function refill(force = false): Promise<void> {
+function schedule(ms: number): void {
+  clearTimeout(timer);
   if (!started) return;
-  if (running) {
-    // a switch / buy / take came in mid-build — pick it up when this run ends
-    wantRefill = true;
+  timer = setTimeout(() => void tick(), ms);
+}
+
+async function tick(): Promise<void> {
+  if (!started || running) return;
+  if (errorAt && Date.now() - errorAt < ERROR_COOLDOWN_MS) {
+    schedule(ERROR_COOLDOWN_MS);
     return;
   }
-  if (!force && errorAt && Date.now() - errorAt < ERROR_COOLDOWN_MS) return;
+
+  const target = nextTarget();
+  publish();
+  if (!target) {
+    status.update((s) => ({ ...s, warming: false }));
+    schedule(TICK_IDLE);
+    return;
+  }
+
   running = true;
-  wantRefill = false;
-  const gen = switchGen;
-  const theme = activeTag === 'random' ? undefined : activeTag;
-  setFetchMode(urgent ? 'fg' : 'bg');
-  status.update((s) => ({ ...s, warming: queue.length < target(), error: null }));
+  // a player staring at a spinner gets the impatient retry profile
+  setFetchMode(target.urgent || waiting ? 'fg' : 'bg');
+  status.update((s) => ({ ...s, warming: true, error: null }));
   try {
-    while (started && gen === switchGen && queue.length < target()) {
-      const quick = urgent && queue.length === 0;
-      const pack = await buildPack({ quick, theme });
-      if (gen !== switchGen) break; // a switch happened mid-build — discard it
-      queue.push(pack);
-      errorAt = 0;
-      persist();
-      if (urgent) {
-        urgent = false;
-        setFetchMode('bg');
-      }
-      status.update((s) => (s.switching ? { ...s, switching: null } : s));
-    }
-    if (gen === switchGen) {
-      status.update((s) => ({ ...s, warming: false, error: null, switching: null }));
-      // queue full — pre-stock this type's candidate pool so the next builds
-      // need no sourcing at all
-      if (started) {
-        if (activeTag === 'random') {
-          if (!bucketsWarm()) void warmBuckets().catch(() => {});
-        } else if (!themeWarm(activeTag)) {
-          void warmTheme(activeTag).catch(() => {});
-        }
-      }
-    }
+    const spent = await stockStep(target.theme);
+    errorAt = 0;
+    publish();
+    // nothing left to do for this target — come back around promptly to pick
+    // the next one, or idle if everything is stocked
+    schedule(spent === 0 ? TICK_ACTIVE : target.urgent ? TICK_URGENT : TICK_ACTIVE);
   } catch (err) {
-    if (gen === switchGen) {
-      errorAt = Date.now();
-      status.update((s) => ({
-        ...s,
-        warming: false,
-        switching: null,
-        error: err instanceof Error ? err.message : 'Could not reach Wikipedia.'
-      }));
-    }
+    errorAt = Date.now();
+    status.update((s) => ({
+      ...s,
+      warming: false,
+      error: err instanceof Error ? err.message : 'Could not reach Wikipedia.'
+    }));
+    schedule(ERROR_COOLDOWN_MS);
   } finally {
     setFetchMode('bg');
     running = false;
-    // the type changed under us, or someone asked again while we were busy
-    const stale = gen !== switchGen;
-    if (started && (wantRefill || stale)) {
-      wantRefill = false;
-      void refill(stale); // force past the error cooldown when the type changed
-    }
   }
 }
 
-function onActivePackChange(tag: ActivePack): void {
-  if (!started || tag === activeTag) return;
-  stash.set(activeTag, queue);
-  switchGen++;
-  activeTag = tag;
-  queue = (stash.get(tag) ?? []).filter(isPack);
-  errorAt = 0;
-  urgent = true;
-  persist();
-  status.update((s) => ({ ...s, ready: queue.length, error: null, switching: tag }));
-  void refill();
+/** Nudge the stocker to reconsider its target right away. */
+function kick(): void {
+  if (!started) return;
+  publish();
+  if (!running) schedule(0);
 }
 
-function onOwnedPacksChange(): void {
-  if (!started || activeTag === 'random') return;
-  const t = target();
-  if (queue.length > t) {
-    // the player opened one — trim the surplus, don't discard the lot
-    queue.length = t;
-    persist();
-  } else if (queue.length < t) {
-    void refill();
-  }
-}
-
-/** Call once, after the app mounts. */
+/** Call once, after the app mounts. Runs for the life of the session. */
 export function start(): void {
   if (started) return;
   started = true;
-  activeTag = get(activePack);
-  restore();
-  activePack.subscribe(onActivePackChange); // fires once synchronously — no-op (equal)
-  ownedPacks.subscribe(onOwnedPacksChange);
-  status.update((s) => ({ ...s, ready: queue.length }));
-  void refill();
+  // re-target whenever the player switches pack type or buys packs
+  activePack.subscribe(() => {
+    const active = themeOf(get(activePack));
+    if (!poolReady(active)) {
+      status.update((s) => ({ ...s, switching: get(activePack) }));
+    }
+    kick();
+  });
+  ownedPacks.subscribe(kick);
+  publish();
+  schedule(0);
 }
 
-/** Pop the next ready pack, or null if none is ready yet. Triggers a refill. */
+/**
+ * Assemble a pack of the active type from the pool, or null if it can't cover
+ * one yet. Synchronous — a stocked pool opens with no request at all.
+ */
 export function take(): Card[] | null {
-  const pack = queue.shift() ?? null;
-  persist();
-  // an empty queue means someone is about to wait — build the next one fast
-  if (!pack || queue.length === 0) urgent = true;
-  // Deferred: the caller consumes an owned themed pack synchronously right after
-  // this returns, and refill() reads that count. Refilling first would build a
-  // themed pack the player no longer owns, only to discard it on the switch.
-  queueMicrotask(() => void refill());
-  // packs queued before a mechanic shipped need a top-up (mythic signatures);
-  // applyMythicSignatures is a no-op for a card that already has one
-  return pack ? applyMythicSignatures(pack) : null;
+  const pack = assemblePack(themeOf(get(activePack)));
+  waiting = pack === null;
+  // the caller consumes an owned themed pack synchronously right after this
+  // returns, so let that land before the stocker re-targets
+  queueMicrotask(kick);
+  return pack;
 }
 
 /** User-triggered retry after an error. */
 export function retry(): void {
   errorAt = 0;
-  urgent = true;
+  waiting = true;
   status.update((s) => ({ ...s, error: null }));
-  void refill(true);
+  kick();
+}
+
+/** Test hook — stop the background loop. */
+export function _stop(): void {
+  started = false;
+  waiting = false;
+  errorAt = 0;
+  clearTimeout(timer);
 }

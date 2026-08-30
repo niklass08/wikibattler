@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { get } from 'svelte/store';
 
-// localStorage shim for the node env (shop.ts + packQueue.ts persist)
 class MemStore {
   m = new Map<string, string>();
   getItem(k: string) {
@@ -15,127 +14,153 @@ class MemStore {
   }
 }
 
-// a controllable buildPack: records which theme each call was for, and can be
-// made slow so a switch can land mid-build
-let buildLog: Array<string> = [];
-let buildBlock: Promise<void> | null = null;
+// A model of draw.ts's candidate pools: one counter per pack type. Each stock
+// step adds 10 cards to that type's pool; assembling a pack takes 7.
+const PACK = 7;
+const FULL = 24;
+let pools: Map<string, number>;
+let stockLog: string[];
+const key = (t: string | null | undefined) => t ?? 'random';
+
 vi.mock('../src/lib/draw', () => ({
-  buildPack: vi.fn(async (opts: { theme?: string } = {}) => {
-    buildLog.push(opts.theme ?? 'random');
-    if (buildBlock) await buildBlock;
-    return Array.from({ length: 7 }, () => ({ id: Math.random(), rarity: 'common' }));
+  poolReady: (t?: string | null) => (pools.get(key(t)) ?? 0) >= PACK,
+  poolCount: (t?: string | null) => pools.get(key(t)) ?? 0,
+  poolFull: (t?: string | null) => (pools.get(key(t)) ?? 0) >= FULL,
+  stockStep: vi.fn(async (t?: string | null) => {
+    stockLog.push(key(t));
+    pools.set(key(t), (pools.get(key(t)) ?? 0) + 10);
+    return 1;
   }),
-  warmBuckets: vi.fn(async () => {}),
-  bucketsWarm: vi.fn(() => true)
+  assemblePack: vi.fn((t?: string | null) => {
+    const k = key(t);
+    const n = pools.get(k) ?? 0;
+    if (n < PACK) return null;
+    pools.set(k, n - PACK);
+    return Array.from({ length: PACK }, (_, i) => ({ id: Math.random(), rarity: 'common', i }));
+  })
 }));
 vi.mock('../src/lib/wiki', () => ({ setFetchMode: vi.fn() }));
-
-const flush = () => new Promise((r) => setTimeout(r, 0));
 
 let shop: typeof import('../src/lib/shop');
 let queue: typeof import('../src/lib/packQueue');
 
+/** let the stocker run for `ms` of its scheduled ticks */
+const run = (ms: number) => vi.advanceTimersByTimeAsync(ms);
+
 beforeEach(async () => {
   vi.resetModules();
+  vi.useFakeTimers();
   vi.stubGlobal('localStorage', new MemStore());
-  buildLog = [];
-  buildBlock = null;
+  pools = new Map();
+  stockLog = [];
   shop = await import('../src/lib/shop');
   queue = await import('../src/lib/packQueue');
 });
+afterEach(() => {
+  queue._stop();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
-describe('packQueue — one pack type', () => {
-  it('fills the random queue on start', async () => {
+describe('background stocker', () => {
+  it('stocks the random pool from start, with no pack pre-built', async () => {
     queue.start();
-    await flush();
-    expect(get(queue.status).ready).toBe(queue.MAX_PREFETCH);
-    expect(buildLog.every((t) => t === 'random')).toBe(true);
+    await run(100);
+    expect(get(queue.status).ready).toBe(true);
+    expect(stockLog.every((t) => t === 'random')).toBe(true);
   });
 
-  it('caps a themed queue at the number owned', async () => {
-    shop.knowledge.add(999);
-    shop.buyPacks('cinema', 2);
+  it('keeps stocking past a single pack, then idles', async () => {
     queue.start();
-    await flush();
-    shop.activePack.set('cinema');
-    await flush();
-    expect(get(queue.status).ready).toBe(2);
-    expect(buildLog.filter((t) => t === 'cinema').length).toBe(2);
+    await run(20_000);
+    expect(pools.get('random')!).toBeGreaterThanOrEqual(FULL);
+    const afterFull = stockLog.length;
+    await run(60_000); // fully stocked — should be quiet now
+    expect(stockLog.length).toBe(afterFull);
+  });
+
+  it('take() assembles instantly from a stocked pool', async () => {
+    queue.start();
+    await run(100);
+    const before = pools.get('random')!;
+    const pack = queue.take();
+    expect(pack).toHaveLength(PACK);
+    expect(pools.get('random')).toBe(before - PACK); // drawn from stock, not built
+  });
+
+  it('take() returns null on a cold pool and the stocker fills it', async () => {
+    // not started: nothing has been stocked
+    expect(queue.take()).toBeNull();
+    queue.start();
+    await run(200);
+    expect(queue.take()).toHaveLength(PACK);
   });
 });
 
-describe('packQueue — switching while a build is in flight', () => {
-  it('still fills the new type after a mid-build switch', async () => {
+describe('stocker priorities', () => {
+  it('switches its target to the pack type the player selects', async () => {
     shop.knowledge.add(999);
-    shop.buyPacks('cinema', 2);
-    shop.buyPacks('vehicles', 3);
+    shop.buyPacks('religion', 3);
+    queue.start();
+    await run(5_000); // random gets stocked first
 
-    // block builds so the switch lands mid-build
-    let unblock!: () => void;
-    buildBlock = new Promise<void>((r) => (unblock = r));
-
-    queue.start(); // starts building 'random'
-    await flush();
-    expect(get(queue.status).ready).toBe(0); // blocked
-
-    shop.activePack.set('cinema'); // switch #1, mid-build
-    await flush();
-    shop.activePack.set('vehicles'); // switch #2, still mid-build
-    await flush();
-
-    unblock(); // let every in-flight + queued build resolve
-    buildBlock = null;
-    // give the re-entrancy re-dispatch a few ticks
-    for (let i = 0; i < 8; i++) await flush();
-
-    expect(get(queue.status).ready).toBe(3); // vehicles: owns 3
-    // the last 3 builds must be for vehicles
-    expect(buildLog.slice(-3)).toEqual(['vehicles', 'vehicles', 'vehicles']);
+    stockLog.length = 0;
+    shop.activePack.set('religion');
+    await run(2_000);
+    expect(stockLog[0]).toBe('religion'); // re-targeted immediately
   });
 
-  it('picks up a buy that lands while building', async () => {
+  it('a selected theme with a stocked pool opens instantly, no fetch', async () => {
     shop.knowledge.add(999);
-    shop.buyPacks('cinema', 1);
-
-    let unblock!: () => void;
-    buildBlock = new Promise<void>((r) => (unblock = r));
-
+    shop.buyPacks('religion', 3);
     queue.start();
-    await flush();
-    shop.activePack.set('cinema');
-    await flush(); // building cinema pack 1 (blocked)
+    shop.activePack.set('religion');
+    await run(5_000);
 
-    shop.buyPacks('cinema', 2); // now owns 3 — lands mid-build
-    await flush();
-
-    unblock();
-    buildBlock = null;
-    for (let i = 0; i < 8; i++) await flush();
-
-    expect(get(queue.status).ready).toBe(3);
+    stockLog.length = 0;
+    const pack = queue.take();
+    expect(pack).toHaveLength(PACK);
+    expect(stockLog).toHaveLength(0); // assembled straight out of stock
   });
-});
 
-describe('packQueue — switch-back uses the in-memory stash', () => {
-  it('restores the other type’s built packs instantly', async () => {
+  it('stocks the themes the player owns even while random is selected', async () => {
     shop.knowledge.add(999);
+    shop.buyPacks('religion', 2);
     shop.buyPacks('cinema', 2);
-    shop.buyPacks('music', 2);
-
     queue.start();
-    await flush();
+    await run(60_000);
+
+    expect(pools.get('religion') ?? 0).toBeGreaterThanOrEqual(PACK);
+    expect(pools.get('cinema') ?? 0).toBeGreaterThanOrEqual(PACK);
+  });
+
+  it('switching between held themes opens instantly, with no wait', async () => {
+    shop.knowledge.add(999);
+    shop.buyPacks('religion', 2);
+    shop.buyPacks('cinema', 2);
+    queue.start();
+    await run(60_000); // everything stocked
+
+    // no `run` between selecting and opening: both must come straight from stock
+    stockLog.length = 0;
+    shop.activePack.set('religion');
+    expect(queue.take()).toHaveLength(PACK);
     shop.activePack.set('cinema');
-    await flush();
-    expect(get(queue.status).ready).toBe(2);
-    const cinemaBuilds = buildLog.filter((t) => t === 'cinema').length;
+    expect(queue.take()).toHaveLength(PACK);
+    expect(stockLog).toHaveLength(0);
+    expect(get(queue.status).switching).toBeNull();
+  });
 
-    shop.activePack.set('music');
-    await flush();
-    shop.activePack.set('cinema'); // back
-    await flush();
+  it('reports the active type readiness and stock level', async () => {
+    shop.knowledge.add(999);
+    shop.buyPacks('religion', 1);
+    queue.start();
+    await run(60_000);
+    shop.activePack.set('religion');
+    await run(1_000);
 
-    // cinema queue restored from stash — no new cinema builds
-    expect(get(queue.status).ready).toBe(2);
-    expect(buildLog.filter((t) => t === 'cinema').length).toBe(cinemaBuilds);
+    const s = get(queue.status);
+    expect(s.ready).toBe(true);
+    expect(s.stocked).toBe(pools.get('religion'));
   });
 });
