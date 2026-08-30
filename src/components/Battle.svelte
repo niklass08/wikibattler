@@ -13,7 +13,9 @@
   import { TAG_LABEL, TAGS, type Tag } from '../lib/tags';
   import { view } from '../stores/view';
   import Card from './Card.svelte';
+  import CardDetail from './CardDetail.svelte';
   import BattlePlayback from './BattlePlayback.svelte';
+  import { longpress } from '../lib/longpress';
   import { sideViewOf, type SideView } from '../lib/battle/playback';
   import { RARITIES, type Card as CardT, type Rarity } from '../lib/types';
   import { fuzzyMatch } from '../lib/fuzzy';
@@ -110,6 +112,9 @@
     battleTeam.toggle(card.id);
   }
 
+  /** Tapping a card picks it, so its details are behind a press-and-hold. */
+  let detail = $state<CardT | null>(null);
+
   // --- fight playback -------------------------------------------------------
   let result = $state<BattleResult | null>(null);
 
@@ -157,6 +162,7 @@
           concepts) sits on the field as terrain and lends a passive effect. Every card adds its
           Defence to the shared HP pool.
         </p>
+        <p class="hold">Press and hold a card to see its full details.</p>
       </div>
     </header>
 
@@ -164,7 +170,11 @@
       <div class="slots">
         {#each slots as m, i (i)}
           {#if m}
-            <div class="slot" title="Remove {m.card.title}">
+            <div
+              class="slot"
+              title="Remove {m.card.title}"
+              use:longpress={{ onlongpress: () => (detail = m.card) }}
+            >
               <div class="frame">
                 <Card
                   card={m.card}
@@ -316,7 +326,13 @@
         {#each roster as card (card.id)}
           {@const picked = $battleTeam.includes(card.id)}
           {@const blocked = blockedReason(card)}
-          <div class="pick" class:picked class:blocked={!!blocked} title={blocked ?? ''}>
+          <div
+            class="pick"
+            class:picked
+            class:blocked={!!blocked}
+            title={blocked ?? ''}
+            use:longpress={{ onlongpress: () => (detail = card) }}
+          >
             <Card {card} onclick={() => pick(card)} dupCount={$collection[card.id]?.count ?? 1} />
             {#if picked}<span class="flag">in team</span>{/if}
           </div>
@@ -334,6 +350,10 @@
     />
   {/if}
 </section>
+
+{#if detail}
+  <CardDetail card={detail} onclose={() => (detail = null)} />
+{/if}
 
 <style>
   .battle {
@@ -355,6 +375,11 @@
     font-size: clamp(26px, 4vw, 40px);
     font-weight: 700;
     letter-spacing: -0.03em;
+  }
+  .hold {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--text-faint);
   }
   .beta {
     font-size: 10px;
@@ -401,6 +426,9 @@
   .slot {
     position: relative;
     min-width: 0;
+    /* press-and-hold shows the card's details — see .pick */
+    -webkit-touch-callout: none;
+    user-select: none;
   }
   /* every slot — filled or empty — is a .frame: one card's worth of space. The
      card / placeholder is absolutely fitted inside it, so the two can never
@@ -660,6 +688,10 @@
     position: relative;
     border-radius: var(--card-radius);
     transition: transform var(--dur) var(--ease);
+    /* a press-and-hold opens the card's details, so stop iOS raising its own
+       selection callout over it */
+    -webkit-touch-callout: none;
+    user-select: none;
     /* poor-man's virtualisation: browser skips layout / paint / the foil
        animations for cards that aren't near the viewport */
     content-visibility: auto;
