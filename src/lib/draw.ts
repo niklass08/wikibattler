@@ -16,7 +16,12 @@ import { generatePack, type RarityPools } from './pack';
 import { applyPackFoil } from './foil';
 import { applyMythicSignatures } from './signature';
 import { rarityFromViews } from './rarity';
+import { deriveTags, type Tag } from './tags';
+import { THEMES } from './themes';
 import * as wiki from './wiki';
+
+type Buckets = Record<Rarity, Candidate[]>;
+const emptyBuckets = (): Buckets => ({ common: [], uncommon: [], rare: [], mythic: [] });
 
 /**
  * How many candidates to stock per rarity before assembling a pack. Above the
@@ -267,9 +272,9 @@ async function stockBuckets(targets: Record<Rarity, number>, guardMax = 25): Pro
   ]);
 }
 
-function dropConsumed(): void {
+function dropConsumed(source: Buckets): void {
   for (const r of RARITIES) {
-    buckets[r] = buckets[r].filter((c) => {
+    source[r] = source[r].filter((c) => {
       const consumed = usedIds.has(c.page.pageid);
       if (consumed) pendingIds.delete(c.page.pageid);
       return !consumed;
@@ -278,50 +283,131 @@ function dropConsumed(): void {
 }
 
 /**
- * Build one complete 7-card pack: stock every bucket, let generatePack() choose
- * the 7 with the guaranteed split, then fetch link counts for those 7 — one
- * batched call, with a parallel exact fallback for any the batch truncated.
+ * The theme-agnostic assembly tail, shared by the random and themed paths: let
+ * `generatePack()` choose the 7 with the guaranteed split, fetch link counts
+ * (one batched call + parallel exact fallback), and apply the finishes.
  */
-export function buildPack(opts: { quick?: boolean } = {}): Promise<Card[]> {
-  return withLock(async () => {
-    restoreCandidates();
-    await stockBuckets(opts.quick ? QUICK_TARGET : TARGET);
+async function assembleFrom(source: Buckets, opts: { persist: boolean }): Promise<Card[]> {
+  const byId = new Map<number, Candidate>();
+  const pools: RarityPools = { common: [], uncommon: [], rare: [], mythic: [] };
+  for (const r of RARITIES) {
+    for (const c of source[r]) {
+      byId.set(c.page.pageid, c);
+      pools[r].push(toStub(c));
+    }
+  }
 
-    const byId = new Map<number, Candidate>();
-    const pools: RarityPools = { common: [], uncommon: [], rare: [], mythic: [] };
-    for (const r of RARITIES) {
-      for (const c of buckets[r]) {
-        byId.set(c.page.pageid, c);
-        pools[r].push(toStub(c));
+  const chosen = generatePack(pools);
+  if (chosen.length < 7) {
+    throw new Error('Not enough Wikipedia articles to fill a pack — retrying shortly.');
+  }
+
+  const cands = chosen.map((stub) => byId.get(stub.id)!);
+  for (const c of cands) usedIds.add(c.page.pageid);
+
+  const counts = await wiki.linkCounts(cands.map((c) => c.page.title));
+  const cards = await Promise.all(
+    cands.map(async (cand) => {
+      let links =
+        counts.get(cand.page.title) ??
+        [...counts].find(([k]) => looseEq(k, cand.page.title))?.[1];
+      if (links === undefined) {
+        links = await wiki.linkCount(cand.page.title).catch(() => 0);
       }
+      // `pilicense=any` covers most lead art; the rest is resolved lazily
+      // (and persisted) by Card.svelte on reveal.
+      return wiki.toCard({ page: cand.page, monthlyViews: cand.monthlyViews, links });
+    })
+  );
+
+  dropConsumed(source);
+  if (opts.persist) persistCandidates();
+  return applyMythicSignatures(applyPackFoil(cards));
+}
+
+// --- themed sourcing --------------------------------------------------------
+// Separate from the random `buckets` — one theme is active at a time. usedIds /
+// pendingIds stay shared so no article shows up in two packs.
+
+let themedTag: Tag | null = null;
+const themedBuckets: Buckets = emptyBuckets();
+/** pageids that failed the deriveTags check this session — never re-verify. */
+const themedRejects = new Set<number>();
+
+function clearThemed(): void {
+  for (const r of RARITIES) {
+    for (const c of themedBuckets[r]) pendingIds.delete(c.page.pageid);
+    themedBuckets[r] = [];
+  }
+  themedRejects.clear();
+  themedTag = null;
+}
+
+/** stash() + the theme gate. Returns whether the page was accepted. */
+function stashThemed(page: wiki.WikiPage, monthlyViews: number, theme: Tag): boolean {
+  const id = page.pageid;
+  if (usedIds.has(id) || pendingIds.has(id) || themedRejects.has(id)) return false;
+  if (!wiki.isPlayable(page)) return false;
+  if (!deriveTags(page.categories, page.extract).includes(theme)) {
+    themedRejects.add(id);
+    return false;
+  }
+  pendingIds.add(id);
+  themedBuckets[rarityFromViews(monthlyViews)].push({ page, monthlyViews });
+  return true;
+}
+
+async function stockThemedBuckets(theme: Tag, targets: Record<Rarity, number>): Promise<void> {
+  if (themedTag !== theme) {
+    clearThemed();
+    themedTag = theme;
+  }
+  const q = THEMES[theme].search;
+  const take = (pages: wiki.WikiPage[]) => {
+    let added = 0;
+    for (const p of pages) {
+      if (stashThemed(p, wiki.monthlyFromViews60(p.views60 ?? 0), theme)) added++;
     }
+    return added;
+  };
+  const bulkShort = () =>
+    themedBuckets.common.length < targets.common ||
+    themedBuckets.uncommon.length < targets.uncommon;
+  const rareShort = () =>
+    themedBuckets.rare.length < targets.rare || themedBuckets.mythic.length < targets.mythic;
 
-    const chosen = generatePack(pools);
-    if (chosen.length < 7) {
-      throw new Error('Not enough Wikipedia articles to fill a pack — retrying shortly.');
+  // random pass — variety; fills common / uncommon (rare/mythic are too scarce
+  // in a random slice of a keyword search, so the rescue pass handles those)
+  for (let i = 0; i < 10 && bulkShort(); i++) {
+    const pages = await wiki.searchEnriched(q, 20, 'random');
+    if (pages.length === 0) break;
+    if (take(pages) === 0 && i >= 3) break;
+  }
+
+  // rescue pass — relevance sort surfaces the theme's flagship, high-traffic
+  // articles, filling the rare/mythic bands the random pass starves (and topping
+  // up common/uncommon if the random pass came up short on a niche theme)
+  for (let i = 0, offset = 0; i < 4 && (rareShort() || bulkShort()); i++, offset += 20) {
+    const pages = await wiki.searchEnriched(q, 20, 'relevance', offset);
+    if (pages.length === 0) break;
+    if (take(pages) === 0) break;
+  }
+}
+
+/**
+ * Build one complete 7-card pack — random by default, or `theme`-locked. Stock
+ * the candidate pool from the right source, then `assembleFrom` does the rest.
+ */
+export function buildPack(opts: { quick?: boolean; theme?: Tag } = {}): Promise<Card[]> {
+  return withLock(async () => {
+    const targets = opts.quick ? QUICK_TARGET : TARGET;
+    if (opts.theme) {
+      await stockThemedBuckets(opts.theme, targets);
+      return assembleFrom(themedBuckets, { persist: false });
     }
-
-    const cands = chosen.map((stub) => byId.get(stub.id)!);
-    for (const c of cands) usedIds.add(c.page.pageid);
-
-    const counts = await wiki.linkCounts(cands.map((c) => c.page.title));
-    const cards = await Promise.all(
-      cands.map(async (cand) => {
-        let links =
-          counts.get(cand.page.title) ??
-          [...counts].find(([k]) => looseEq(k, cand.page.title))?.[1];
-        if (links === undefined) {
-          links = await wiki.linkCount(cand.page.title).catch(() => 0);
-        }
-        // `pilicense=any` covers most lead art; the rest is resolved lazily
-        // (and persisted) by Card.svelte on reveal.
-        return wiki.toCard({ page: cand.page, monthlyViews: cand.monthlyViews, links });
-      })
-    );
-
-    dropConsumed();
-    persistCandidates();
-    return applyMythicSignatures(applyPackFoil(cards));
+    restoreCandidates();
+    await stockBuckets(targets);
+    return assembleFrom(buckets, { persist: true });
   });
 }
 
@@ -355,11 +441,14 @@ export function _resetSession(): void {
   for (const r of RARITIES) {
     buckets[r] = [];
     topByRarity[r] = [];
+    themedBuckets[r] = [];
   }
   usedIds.clear();
   pendingIds.clear();
   topSeen.clear();
   fetchedMonths.clear();
+  themedRejects.clear();
+  themedTag = null;
   restored = false;
   chain = Promise.resolve();
 }

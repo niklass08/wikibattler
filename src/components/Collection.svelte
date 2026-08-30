@@ -1,5 +1,7 @@
 <script lang="ts">
   import { collection, computeProgress, favourites, packsOpened } from '../lib/collection';
+  import { knowledge } from '../lib/shop';
+  import { disenchantValue } from '../lib/economy';
   import { RARITIES, type Rarity } from '../lib/types';
   import { TAG_LABEL, TAGS, TAG_REV, deriveTags, type Tag } from '../lib/tags';
   import { view } from '../stores/view';
@@ -26,6 +28,27 @@
   const owned = $derived(Object.values($collection).map((e) => e.card));
 
   const favCount = $derived(owned.filter((c) => $favourites.has(c.id)).length);
+
+  // bulk disenchant: every non-favourite pile down to one copy
+  const dupePreview = $derived(
+    Object.values($collection).reduce(
+      (sum, e) =>
+        e.count > 1 && !$favourites.has(e.card.id)
+          ? sum + disenchantValue(e.card) * (e.count - 1)
+          : sum,
+      0
+    )
+  );
+  let confirmBulk = $state(false);
+  function disenchantDupes() {
+    if (!confirmBulk) {
+      confirmBulk = true;
+      return;
+    }
+    knowledge.add(collection.disenchantDuplicates());
+    confirmBulk = false;
+  }
+
   // last favourite un-starred while the filter was on — drop back to the full grid
   $effect(() => {
     if (favCount === 0 && favOnly) favOnly = false;
@@ -137,6 +160,15 @@
         <p class="sub mono">
           {progress.ownedUnique} unique · {progress.totalCards} cards · {$packsOpened} packs
         </p>
+        {#if dupePreview > 0}
+          <button class="dedust" class:arm={confirmBulk} onclick={disenchantDupes}>
+            {#if confirmBulk}
+              Disenchant every duplicate for +{dupePreview} 📖?
+            {:else}
+              Disenchant duplicates +{dupePreview} 📖
+            {/if}
+          </button>
+        {/if}
       </div>
       <div class="meters">
         {#each progress.perRarity as r (r.rarity)}
@@ -258,6 +290,24 @@
     color: var(--text-dim);
     font-size: 13px;
     margin-top: 6px;
+  }
+  .dedust {
+    margin-top: 10px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--text-dim);
+    transition: all var(--dur) var(--ease);
+  }
+  .dedust:hover {
+    color: var(--uncommon);
+    border-color: color-mix(in srgb, var(--uncommon) 55%, transparent);
+  }
+  .dedust.arm {
+    color: var(--mythic-2);
+    border-color: var(--mythic-2);
+    background: color-mix(in srgb, var(--mythic-2) 12%, transparent);
   }
   .meters {
     display: flex;

@@ -12,7 +12,9 @@ A trading-card game built on Wikipedia. Every article is a card:
 
 Two screens: **open packs** (7 cards — modally 4 common / 2 uncommon / 1 rare, with
 an upgrade roll on every card and a guaranteed rare-or-better in the last slot)
-and **view your collection**. Plus **Battle** (a deterministic auto-battler vs a
+and **view your collection**. **Disenchant** unwanted cards for **knowledge**, spend
+it in the **Shop** on consumable **thematic packs** (one per theme, colour-coded,
+all seven cards on-theme). Plus **Battle** (a deterministic auto-battler vs a
 practice dummy) and the **Arena** (an opt-in global PvP ladder — see below). The
 core game is fully client-side — no backend, no API keys. Your collection lives in
 `localStorage`.
@@ -60,6 +62,23 @@ articles with nothing usable get a title-tinted typographic card.
 If the API is unreachable and the queue is empty, the pack screen shows an error + retry.
 
 Rarity/stat thresholds live in `src/lib/rarity.ts`.
+
+## Economy — disenchant & thematic packs
+
+- **`src/lib/economy.ts`** — the one config file: `DISENCHANT_VALUE` per rarity,
+  foil/negated bonuses, `THEMATIC_PACK_PRICE`. Tuned generous (one disenchanted
+  uncommon ≈ one themed pack); every number is a one-line edit.
+- **`src/lib/shop.ts`** — the `knowledge` / `ownedPacks` / `activePack` stores
+  (`wikitcg:knowledge:v1`, `:owned-packs:v1`, `:active-pack:v1`) + `buyPacks()`.
+- **`src/lib/themes.ts`** — per-theme colour + icon + the `gsrsearch` query that
+  sources on-theme candidates.
+- **Thematic pack building** (`draw.ts`): `buildPack({ theme })` sources candidates
+  via `wiki.searchEnriched` (`generator=search`, `gsrsort=random` for spread then
+  `gsrsort=relevance` to rescue the rare/mythic slots), keeps only pages that
+  `deriveTags` confirms are on-theme, and hands the same `RarityPools` to the
+  unchanged `generatePack`. `packQueue` follows `activePack`, capping a themed
+  queue at the number owned and stashing the other type's built packs for a fast
+  switch-back.
 
 ## Deploy
 

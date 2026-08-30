@@ -8,6 +8,8 @@
   import Card from './Card.svelte';
   import RarityBadge from './RarityBadge.svelte';
   import { collection, favourites } from '../lib/collection';
+  import { knowledge } from '../lib/shop';
+  import { disenchantValue } from '../lib/economy';
 
   let { card, onclose }: { card: CardT; onclose: () => void } = $props();
 
@@ -15,6 +17,24 @@
   const isFav = $derived($favourites.has(card.id));
   const breakdown = $derived(battleBreakdown(card));
   const signature = $derived(cardSignature(card));
+  const disValue = $derived(disenchantValue(card));
+
+  let confirmDis = $state(false);
+  // drop the "remove last copy?" arm whenever the card changes
+  $effect(() => {
+    void card.id;
+    confirmDis = false;
+  });
+
+  function disenchant() {
+    if (count === 1 && !confirmDis) {
+      confirmDis = true;
+      return;
+    }
+    knowledge.add(collection.disenchant(card.id));
+    confirmDis = false;
+    if (count <= 1) onclose();
+  }
 
   function onkey(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose();
@@ -100,8 +120,21 @@
         >
           {isFav ? '★ Favourited' : '☆ Favourite'}
         </button>
+        {#if count > 0 && !isFav}
+          <button
+            class="btn btn--ghost dis"
+            class:arm={confirmDis}
+            onclick={disenchant}
+          >
+            {#if confirmDis}
+              Remove last copy? +{disValue} 📖
+            {:else}
+              Disenchant +{disValue} 📖
+            {/if}
+          </button>
+        {/if}
         <a class="btn btn--ghost" href={card.url} target="_blank" rel="noopener noreferrer">
-          Read on Wikipedia ↗
+          Wikipedia ↗
         </a>
         <button class="btn" onclick={onclose}>Close</button>
       </div>
@@ -331,6 +364,7 @@
   }
   .foot {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     margin-top: auto;
     padding-top: 8px;
@@ -346,6 +380,19 @@
   .foot .fav.on {
     color: #f5c518;
     border-color: color-mix(in srgb, #f5c518 55%, transparent);
+  }
+  .foot .dis {
+    flex: 0 0 auto;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .foot .dis:hover {
+    color: var(--uncommon);
+    border-color: color-mix(in srgb, var(--uncommon) 55%, transparent);
+  }
+  .foot .dis.arm {
+    color: var(--mythic-2);
+    border-color: var(--mythic-2);
   }
 
   @media (max-width: 620px) {

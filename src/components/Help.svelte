@@ -141,6 +141,26 @@
     better those odds. Any slot can chain all the way to mythic; it's just rare.
   </p>
 
+  <!-- ─── disenchant & thematic packs ───────────────────────────────── -->
+  <h2>Knowledge &amp; thematic packs</h2>
+  <p>
+    <strong>Disenchant</strong> a card — from its detail view, or "Disenchant duplicates"
+    on the Collection — to turn it into <strong>knowledge</strong> 📖. Rarer cards, foils and
+    negated cards are worth more. Disenchanting your last copy removes the card from the
+    collection; favourited cards are safe until you un-favourite them.
+  </p>
+  <p>
+    Spend knowledge in the <strong>Shop</strong> on <strong>thematic packs</strong> — one for
+    every theme. A thematic pack draws all seven cards from that theme, in the same 4·2·1
+    rarity mix, as a colour-coded version of the normal pack. They're consumable: buy a few,
+    then pick which pack to open from the selector on the Open screen. Each themed open spends
+    one; when you run out you're back to Random.
+  </p>
+  <p class="fine">
+    The narrowest themes (disease, scientists, vehicles, plants) have few popular articles, so
+    a thematic pack's guaranteed rare is occasionally a promoted uncommon.
+  </p>
+
   <!-- ─── battler ───────────────────────────────────────────────────── -->
   <h2>Auto Battler <span class="beta mono">beta</span></h2>
   <p>

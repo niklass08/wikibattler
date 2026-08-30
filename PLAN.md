@@ -458,6 +458,32 @@ Export/import collection as JSON — nice, cheap, do it if time allows.
 
 ---
 
+## 11. Economy — disenchant & thematic packs (added 2026-08-30)
+
+- **Disenchant → knowledge → consumable thematic packs.** `src/lib/economy.ts` is
+  the tunable config (disenchant value per rarity + foil/negated bonus,
+  `THEMATIC_PACK_PRICE`); `src/lib/shop.ts` holds `knowledge` / `ownedPacks` /
+  `activePack` (mirroring `createPacksOpened`); `collection.disenchant(id, n)` /
+  `disenchantDuplicates()` mutate the collection and return the knowledge earned
+  (favourites protected, last copy allowed).
+- **`src/lib/themes.ts`** — per-`Tag` `{ label, icon, color, search }`. Colour is
+  the single source of truth, applied via inline `style:--accent` (tokens.css
+  untouched).
+- **Thematic pack sourcing** (`draw.ts`): `buildPack({ theme })` fills a separate
+  `themedBuckets` (one theme active at a time, `usedIds` shared) from
+  `wiki.searchEnriched` — `generator=search`, `gsrsort=random` pass for spread
+  then a `gsrsort=relevance` rescue pass for the rare/mythic bands — keeping only
+  pages `deriveTags` confirms on-theme. Everything from `generatePack` onward is
+  the shared `assembleFrom` tail. Themed buckets are not persisted.
+- **`packQueue`** subscribes to `activePack` + `ownedPacks`: `target()` caps a
+  themed queue at `min(owned, MAX_PREFETCH)`; a type switch bumps `switchGen`
+  (discards stale in-flight builds), stashes the old queue in memory, rebuilds;
+  persists `{ tag, packs }`.
+- **`generator=search` verified** to return `pageviews` + `categories` — no
+  `enrichTitles` fallback needed. Niche themes (disease/scientists/vehicles/plants)
+  are noisier: the guaranteed rare can degrade to a promoted uncommon via the
+  existing `FALLBACK`. Documented in Help.
+
 ## 10. Arena — global PvP ladder (added 2026-08-30, after §9)
 
 An opt-in async ladder: publish a **defending team**, attack anyone else's, ranked

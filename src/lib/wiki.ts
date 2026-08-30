@@ -247,6 +247,29 @@ export async function enrichTitles(titles: string[]): Promise<WikiPage[]> {
   return parsePages(await fetchJson(`${API}?${params}`));
 }
 
+/**
+ * Up to `n` (≤20) namespace-0 articles matching a full-text search, fully
+ * enriched, in one call. `sort: 'random'` for varied draws; `'relevance'`
+ * surfaces the most prominent (≈ highest-traffic) matches — used to fill a
+ * thematic pack's rare/mythic slots. `offset` paginates the relevance list.
+ */
+export async function searchEnriched(
+  query: string,
+  n = 20,
+  sort: 'random' | 'relevance' = 'random',
+  offset = 0
+): Promise<WikiPage[]> {
+  if (!query.trim()) return [];
+  const params = new URLSearchParams(ENRICH_PARAMS);
+  params.set('generator', 'search');
+  params.set('gsrsearch', query);
+  params.set('gsrnamespace', '0');
+  params.set('gsrlimit', String(Math.min(Math.max(n, 1), 20)));
+  params.set('gsrsort', sort);
+  if (offset > 0) params.set('gsroffset', String(offset));
+  return parsePages(await fetchJson(`${API}?${params}`));
+}
+
 const rasterFirst = (title: string) => (/\.(jpe?g|png|webp)$/i.test(title) ? 0 : 1);
 
 /**

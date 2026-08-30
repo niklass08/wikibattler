@@ -4,6 +4,7 @@
   import PackOpener from './components/PackOpener.svelte';
   import Collection from './components/Collection.svelte';
   import Battle from './components/Battle.svelte';
+  import Shop from './components/Shop.svelte';
   import Help from './components/Help.svelte';
 
   // Arena pulls in the Firebase SDK — load it (and its chunk) only on demand so
@@ -24,6 +25,8 @@
     {:catch}
       <p class="load-fail wrap">The Arena failed to load — check your connection and try again.</p>
     {/await}
+  {:else if $view === 'shop'}
+    <Shop />
   {:else if $view === 'help'}
     <Help />
   {:else}

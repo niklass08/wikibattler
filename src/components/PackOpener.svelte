@@ -1,9 +1,13 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { get } from 'svelte/store';
   import { fly, scale } from 'svelte/transition';
   import { flip } from 'svelte/animate';
   import { collection, packsOpened } from '../lib/collection';
   import { take, retry, status as queueStatus, MAX_PREFETCH } from '../lib/packQueue';
+  import { activePack, ownedPacks, ownedThemes, type ActivePack } from '../lib/shop';
+  import { THEMES } from '../lib/themes';
+  import { view } from '../stores/view';
   import { isGodPack } from '../lib/foil';
   import { FOIL_LABEL, type Card as CardT, type FoilTier } from '../lib/types';
   import Card from './Card.svelte';
@@ -34,6 +38,17 @@
   const godPack = $derived(isGodPack(pack));
   const hasNegated = $derived(pack.some((c) => c.negated));
 
+  // themed-pack state
+  const myThemes = $derived(ownedThemes($ownedPacks));
+  const themeMeta = (t: ActivePack) =>
+    t === 'random' ? null : { color: THEMES[t].color, icon: THEMES[t].icon, label: THEMES[t].label };
+  /** the type of the *next* pack to open (drives the deck + copy) */
+  const deck = $derived(themeMeta($activePack));
+  /** the type of the pack currently being revealed (captured at startReveal, before any flip) */
+  let revealTheme = $state<ActivePack>('random');
+  const revealDeck = $derived(themeMeta(revealTheme));
+  const switching = $derived($queueStatus.switching);
+
   function rank(cards: CardT[]): string {
     const order = ['common', 'uncommon', 'rare', 'mythic'];
     return cards.reduce((best, c) => (order.indexOf(c.rarity) > order.indexOf(best) ? c.rarity : best), 'common');
@@ -44,6 +59,13 @@
     opened = 0;
     newIds = collection.addCards(cards);
     packsOpened.increment();
+    // consume one themed pack; drop back to Random when the last is spent
+    const theme = get(activePack);
+    revealTheme = theme;
+    if (theme !== 'random') {
+      if (ownedPacks.count(theme) > 0) ownedPacks.consume(theme);
+      if (ownedPacks.count(theme) === 0) activePack.set('random');
+    }
     pendingOpen = false;
     void drawNext(); // flip the first card straight away
   }
@@ -96,16 +118,54 @@
 <section class="opener wrap" class:solo={!hasPack} bind:this={sectionEl}>
   {#if !hasPack && !pendingOpen && !$queueStatus.error}
     <div class="idle" in:scale={{ duration: 300, start: 0.94 }}>
-      <button class="deck deck--open" type="button" onclick={openPack} aria-label="Open pack">
+      <button
+        class="deck deck--open"
+        type="button"
+        onclick={openPack}
+        aria-label="Open pack"
+        disabled={!!switching && $queueStatus.ready === 0}
+      >
         <span class="pane"></span><span class="pane"></span>
-        <span class="pane top"><CardBack /></span>
+        <span class="pane top"><CardBack accent={deck?.color} icon={deck?.icon} /></span>
       </button>
-      <h1>Open a pack</h1>
+
+      <div class="packs">
+        <button
+          class="pk"
+          class:on={$activePack === 'random'}
+          onclick={() => activePack.set('random')}
+        >
+          🎲 Random
+        </button>
+        {#each myThemes as t (t)}
+          <button
+            class="pk"
+            class:on={$activePack === t}
+            style:--accent={THEMES[t].color}
+            onclick={() => activePack.set(t)}
+          >
+            {THEMES[t].icon} {THEMES[t].label}
+            <span class="count mono">{$ownedPacks[t]}</span>
+          </button>
+        {/each}
+        {#if myThemes.length === 0}
+          <button class="pk buy" onclick={() => view.set('shop')}>Buy themed packs →</button>
+        {/if}
+      </div>
+
+      <h1>{deck ? `Open a ${deck.label} pack` : 'Open a pack'}</h1>
       <p class="sub">
-        Seven cards drawn live from Wikipedia. Four common, two uncommon, a
-        guaranteed rare — and every card rolls to upgrade, the deeper the better.
+        {#if deck}
+          Seven {deck.label} cards drawn live from Wikipedia — same 4·2·1 rarity mix
+          as a normal pack.
+        {:else}
+          Seven cards drawn live from Wikipedia. Four common, two uncommon, a
+          guaranteed rare — and every card rolls to upgrade, the deeper the better.
+        {/if}
       </p>
-      <button class="btn" onclick={openPack}>Open pack</button>
+      <button class="btn" onclick={openPack} disabled={!!switching && $queueStatus.ready === 0}>
+        {switching ? 'Shuffling…' : 'Open pack'}
+      </button>
       <p class="tally mono">
         {$packsOpened} opened
         {#if $queueStatus.ready < MAX_PREFETCH && !$queueStatus.error}
@@ -117,12 +177,16 @@
     <div class="waiting" in:scale={{ duration: 300, start: 0.94 }}>
       <div class="deck" aria-hidden="true">
         <span class="pane"></span><span class="pane"></span>
-        <span class="pane top"><CardBack /></span>
+        <span class="pane top"><CardBack accent={deck?.color} icon={deck?.icon} /></span>
       </div>
       {#if $queueStatus.error}
         <h1>Couldn't reach Wikipedia</h1>
         <p class="sub">{$queueStatus.error}</p>
         <button class="btn" onclick={retryOpen}>Try again</button>
+      {:else if switching}
+        <h1>Shuffling in your {deck?.label ?? 'Random'} pack…</h1>
+        <p class="sub">Fetching {deck?.label.toLowerCase() ?? ''} articles from Wikipedia.</p>
+        <p class="tally mono">switching pack</p>
       {:else}
         <h1>Building your pack…</h1>
         <p class="sub">Fetching articles and tallying their links.</p>
@@ -144,7 +208,7 @@
             >
               {#each remaining as card, i (card.id)}
                 <div class="stacked" style="--i:{i}" out:fly={{ y: 220, duration: 240 }}>
-                  <Card {card} faceDown />
+                  <Card {card} faceDown accent={revealDeck?.color} />
                 </div>
               {/each}
             </div>
@@ -163,7 +227,7 @@
               aria-label="Open another pack"
             >
               {#each NEXT_DECK as i (i)}
-                <div class="stacked" style="--i:{i}"><CardBack /></div>
+                <div class="stacked" style="--i:{i}"><CardBack accent={deck?.color} icon={i === 0 ? deck?.icon : undefined} /></div>
               {/each}
             </button>
             <p class="hint mono">
@@ -239,6 +303,39 @@
     align-items: center;
     text-align: center;
     gap: clamp(10px, 1.8vh, 18px);
+  }
+  .packs {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    max-width: 460px;
+  }
+  .pk {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--text-dim);
+    transition: all var(--dur) var(--ease);
+  }
+  .pk:hover {
+    color: var(--text);
+  }
+  .pk.on {
+    color: var(--text);
+    border-color: var(--accent, var(--text));
+    background: color-mix(in srgb, var(--accent, var(--text)) 15%, transparent);
+  }
+  .pk .count {
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+  .pk.buy {
+    color: var(--accent, var(--rare));
   }
   .waiting .deck {
     animation: deck-pulse 1.5s ease-in-out infinite;

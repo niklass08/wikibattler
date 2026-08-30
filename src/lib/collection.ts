@@ -1,8 +1,9 @@
-import { writable } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 import type { Card, Collection, OwnedEntry, Rarity } from './types';
 import { RARITIES } from './types';
 import { defenceFromBytes, strengthFromLinks } from './rarity';
 import { rollSignature } from './signature';
+import { disenchantValue } from './economy';
 
 // v2: entries carry the full card — there is no static pool to look it up in.
 const COLLECTION_KEY = 'wikitcg:collection:v2';
@@ -139,6 +140,50 @@ function createCollection() {
         safeSet(COLLECTION_KEY, JSON.stringify(next));
         return next;
       });
+    },
+    /**
+     * Disenchant up to `n` copies of a card for knowledge (see economy.ts).
+     * Returns the knowledge earned (0 if nothing was removed). A favourited card
+     * is refused. The entry is deleted once the last copy goes.
+     */
+    disenchant(id: number, n = 1): number {
+      let earned = 0;
+      update((c) => {
+        const entry = c[id];
+        if (!entry || get(favourites).has(id)) return c;
+        const take = Math.min(Math.max(0, Math.floor(n)), entry.count);
+        if (take <= 0) return c;
+        earned = disenchantValue(entry.card) * take;
+        const next = { ...c };
+        if (entry.count - take <= 0) delete next[id];
+        else next[id] = { ...entry, count: entry.count - take };
+        safeSet(COLLECTION_KEY, JSON.stringify(next));
+        return next;
+      });
+      return earned;
+    },
+    /**
+     * Take every non-favourite card with more than one copy back down to a
+     * single copy. Returns the total knowledge earned.
+     */
+    disenchantDuplicates(): number {
+      let earned = 0;
+      update((c) => {
+        const favs = get(favourites);
+        const next: Collection = { ...c };
+        let changed = false;
+        for (const [key, entry] of Object.entries(c)) {
+          const id = Number(key);
+          if (entry.count <= 1 || favs.has(id)) continue;
+          earned += disenchantValue(entry.card) * (entry.count - 1);
+          next[id] = { ...entry, count: 1 };
+          changed = true;
+        }
+        if (!changed) return c;
+        safeSet(COLLECTION_KEY, JSON.stringify(next));
+        return next;
+      });
+      return earned;
     },
     reset() {
       set({});

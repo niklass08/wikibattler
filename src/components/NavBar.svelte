@@ -1,6 +1,7 @@
 <script lang="ts">
   import { view } from '../stores/view';
   import { collection } from '../lib/collection';
+  import { knowledge } from '../lib/shop';
 
   const owned = $derived(Object.keys($collection).length);
 </script>
@@ -23,6 +24,9 @@
         </button>
         <button class:active={$view === 'arena'} onclick={() => view.set('arena')}>
           Arena <span class="tag mono">beta</span>
+        </button>
+        <button class:active={$view === 'shop'} onclick={() => view.set('shop')}>
+          Shop <span class="count mono">📖{$knowledge}</span>
         </button>
       {/if}
       <button class="help" class:active={$view === 'help'} onclick={() => view.set('help')}>

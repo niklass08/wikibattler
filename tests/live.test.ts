@@ -152,6 +152,25 @@ function linkCountsBody(titles: string[]) {
   };
 }
 
+/** `generator=search` — 20 on-theme pages; relevance sort returns the high-view band. */
+function searchBody(sort: string) {
+  const n = 20;
+  const views = sort === 'relevance' ? 300_000 : 4_000; // relevance ⇒ rare band
+  const pages = Array.from({ length: n }, (_, i) => ({
+    pageid: 500_000 + (sort === 'relevance' ? 1000 : 0) + i,
+    title: `Cinema ${sort} ${i}`,
+    fullurl: `https://en.wikipedia.org/wiki/Cinema_${sort}_${i}`,
+    length: 55_000,
+    extract: `A ${sort} article about a film directed by someone.`,
+    categories: [
+      { title: 'Category:2001 films' },
+      { title: 'Category:Films directed by Someone' }
+    ],
+    pageviews: { a: views, b: views }
+  }));
+  return { query: { pages } };
+}
+
 const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
   const url = String(input);
   if (url.includes('/metrics/pageviews/top/')) return jsonResponse(topBody());
@@ -159,6 +178,9 @@ const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     return jsonResponse(mediaListBody(decodeURIComponent(url.split('/page/media-list/')[1])));
   }
   if (url.includes('generator=random')) return jsonResponse(randomPagesBody(20));
+  if (url.includes('generator=search')) {
+    return jsonResponse(searchBody(new URL(url).searchParams.get('gsrsort') ?? 'random'));
+  }
   if (url.includes('action=parse')) return jsonResponse(linksBody());
   const titles = new URL(url).searchParams.get('titles') ?? '';
   if (url.includes('action=query') && url.includes('prop=links')) {
@@ -208,5 +230,20 @@ describe('buildPack (live assembly)', () => {
     const b = await buildPack();
     const overlap = a.filter((c) => b.some((d) => d.id === c.id));
     expect(overlap).toHaveLength(0);
+  }, 30_000);
+
+  it('builds a themed pack of on-theme cards, last card rare-or-better', async () => {
+    const pack = await buildPack({ theme: 'cinema' });
+    const order = ['common', 'uncommon', 'rare', 'mythic'];
+    expect(pack).toHaveLength(7);
+    expect(new Set(pack.map((c) => c.id)).size).toBe(7);
+    for (const c of pack) expect(c.tags).toContain('cinema');
+    expect(order.indexOf(pack[6].rarity)).toBeGreaterThanOrEqual(order.indexOf('rare'));
+  }, 30_000);
+
+  it('a themed pack shares no article with a random pack (shared usedIds)', async () => {
+    const rnd = await buildPack();
+    const themed = await buildPack({ theme: 'cinema' });
+    expect(rnd.filter((c) => themed.some((d) => d.id === c.id))).toHaveLength(0);
   }, 30_000);
 });

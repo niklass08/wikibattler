@@ -1,7 +1,12 @@
 <!-- Shared card back: a Wikipedia throwback — paper greys, a globe + serif W,
      faint ruled "article" lines. Fills its (position:relative) parent. Root is a
-     <span> so it stays valid inside the deck <button>. -->
-<span class="cardback" aria-hidden="true">
+     <span> so it stays valid inside the deck <button>. An optional `accent`
+     colour-codes the back for a thematic pack (border + glow + corner icon). -->
+<script lang="ts">
+  let { accent, icon }: { accent?: string; icon?: string } = $props();
+</script>
+
+<span class="cardback" class:themed={!!accent} style:--pack={accent} aria-hidden="true">
   <span class="emblem">
     <svg class="globe" viewBox="0 0 100 100">
       <circle cx="50" cy="50" r="46" />
@@ -14,6 +19,7 @@
     <span class="w">W</span>
   </span>
   <span class="tag">The Free Card Game</span>
+  {#if accent && icon}<span class="badge">{icon}</span>{/if}
 </span>
 
 <style>
@@ -32,6 +38,28 @@
       radial-gradient(120% 78% at 50% 0%, #e7e8eb, transparent 72%),
       linear-gradient(165deg, #d6d8dc 0%, #c0c3c8 55%, #adb0b6 100%);
     border: 1px solid var(--paper-line);
+  }
+  /* thematic pack — same paper back, tinted */
+  .cardback.themed {
+    border-color: var(--pack);
+    box-shadow:
+      inset 0 0 0 2px color-mix(in srgb, var(--pack) 60%, transparent),
+      0 0 22px -4px var(--pack);
+  }
+  .cardback.themed::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(130% 60% at 50% 100%, color-mix(in srgb, var(--pack) 32%, transparent), transparent 70%);
+    mix-blend-mode: multiply;
+  }
+  .badge {
+    position: absolute;
+    top: 6cqw;
+    right: 6cqw;
+    font-size: 9cqw;
+    line-height: 1;
+    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.4));
   }
   /* faint ruled lines, like the text of an article */
   .cardback::before {

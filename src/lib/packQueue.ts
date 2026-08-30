@@ -1,16 +1,20 @@
 /**
- * Background prefetch of fully-assembled packs. Opening a pack pops one from the
+ * Background prefetch of fully-assembled packs. Opening one pops it from the
  * front instantly; the queue refills in the background, so the slow-but-accurate
- * live path (keep fetching for a real uncommon, exact per-card link counts) never
- * blocks the player.
+ * live path never blocks the player.
+ *
+ * The queue always holds packs of the *currently active* type (`activePack`),
+ * and never more themed packs than the player owns. Switching type stashes the
+ * old queue in memory and rebuilds for the new one.
  *
  * Nothing here touches the network at import time — only `start()` does.
  */
-import { writable } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 import type { Card } from './types';
 import { buildPack, warmBuckets, bucketsWarm } from './draw';
 import { applyMythicSignatures } from './signature';
 import { setFetchMode } from './wiki';
+import { activePack, ownedPacks, type ActivePack } from './shop';
 
 export const MAX_PREFETCH = 5;
 const KEY = 'wikitcg:packqueue:v1';
@@ -21,9 +25,16 @@ export interface QueueStatus {
   ready: number;
   warming: boolean;
   error: string | null;
+  /** non-null while the queue is rebuilding after a pack-type switch */
+  switching: ActivePack | null;
 }
 
-export const status = writable<QueueStatus>({ ready: 0, warming: false, error: null });
+export const status = writable<QueueStatus>({
+  ready: 0,
+  warming: false,
+  error: null,
+  switching: null
+});
 
 let queue: Card[][] = [];
 let running = false;
@@ -32,13 +43,26 @@ let errorAt = 0;
 /** A player is waiting on an empty queue — build fast, be impatient with the API. */
 let urgent = false;
 
+/** Which pack type the queue currently holds. */
+let activeTag: ActivePack = 'random';
+/** Bumped on every type switch; an in-flight build whose gen is stale is discarded. */
+let switchGen = 0;
+/** In-memory only: the other types' already-built packs, kept for a fast switch-back. */
+const stash = new Map<ActivePack, Card[][]>();
+
 function isPack(p: unknown): p is Card[] {
   return Array.isArray(p) && p.length === 7 && p.every((c) => c && typeof c === 'object' && 'id' in c);
 }
 
+/** How many packs the queue should hold right now. */
+function target(): number {
+  if (activeTag === 'random') return MAX_PREFETCH;
+  return Math.min(ownedPacks.count(activeTag), MAX_PREFETCH);
+}
+
 function persist(): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(queue));
+    localStorage.setItem(KEY, JSON.stringify({ tag: activeTag, packs: queue }));
   } catch {
     /* private mode / quota */
   }
@@ -49,7 +73,12 @@ function restore(): void {
   try {
     const raw = localStorage.getItem(KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed)) queue = parsed.filter(isPack);
+    // { tag, packs } — keep only if it matches the type we're about to serve
+    if (parsed && parsed.tag === activeTag && Array.isArray(parsed.packs)) {
+      queue = parsed.packs.filter(isPack);
+    } else {
+      queue = [];
+    }
   } catch {
     queue = [];
   }
@@ -59,29 +88,35 @@ async function refill(force = false): Promise<void> {
   if (running || !started) return;
   if (!force && errorAt && Date.now() - errorAt < ERROR_COOLDOWN_MS) return;
   running = true;
+  const gen = switchGen;
+  const theme = activeTag === 'random' ? undefined : activeTag;
   setFetchMode(urgent ? 'fg' : 'bg');
-  status.update((s) => ({ ...s, warming: queue.length < MAX_PREFETCH, error: null }));
+  status.update((s) => ({ ...s, warming: queue.length < target(), error: null }));
   try {
-    while (started && queue.length < MAX_PREFETCH) {
-      // the first pack for a waiting player is built "quick" — bare-minimum
-      // sourcing — so the open is fast; the rest fill in properly
+    while (started && gen === switchGen && queue.length < target()) {
       const quick = urgent && queue.length === 0;
-      queue.push(await buildPack({ quick }));
+      const pack = await buildPack({ quick, theme });
+      if (gen !== switchGen) return; // a switch happened mid-build — discard it
+      queue.push(pack);
       errorAt = 0;
       persist();
-      if (queue.length > 0 && urgent) {
+      if (urgent) {
         urgent = false;
         setFetchMode('bg');
       }
+      status.update((s) => (s.switching ? { ...s, switching: null } : s));
     }
-    status.update((s) => ({ ...s, warming: false, error: null }));
-    // queue full — pre-stock candidate buckets so the next builds are near-instant
-    if (started && !bucketsWarm()) void warmBuckets().catch(() => {});
+    if (gen !== switchGen) return;
+    status.update((s) => ({ ...s, warming: false, error: null, switching: null }));
+    // random queue full — pre-stock candidate buckets so the next builds are fast
+    if (started && activeTag === 'random' && !bucketsWarm()) void warmBuckets().catch(() => {});
   } catch (err) {
+    if (gen !== switchGen) return;
     errorAt = Date.now();
     status.update((s) => ({
       ...s,
       warming: false,
+      switching: null,
       error: err instanceof Error ? err.message : 'Could not reach Wikipedia.'
     }));
   } finally {
@@ -90,11 +125,39 @@ async function refill(force = false): Promise<void> {
   }
 }
 
+function onActivePackChange(tag: ActivePack): void {
+  if (!started || tag === activeTag) return;
+  stash.set(activeTag, queue);
+  switchGen++;
+  activeTag = tag;
+  queue = (stash.get(tag) ?? []).filter(isPack);
+  errorAt = 0;
+  urgent = true;
+  persist();
+  status.update((s) => ({ ...s, ready: queue.length, error: null, switching: tag }));
+  void refill();
+}
+
+function onOwnedPacksChange(): void {
+  if (!started || activeTag === 'random') return;
+  const t = target();
+  if (queue.length > t) {
+    // the player opened one — trim the surplus, don't discard the lot
+    queue.length = t;
+    persist();
+  } else if (queue.length < t) {
+    void refill();
+  }
+}
+
 /** Call once, after the app mounts. */
 export function start(): void {
   if (started) return;
   started = true;
+  activeTag = get(activePack);
   restore();
+  activePack.subscribe(onActivePackChange); // fires once synchronously — no-op (equal)
+  ownedPacks.subscribe(onOwnedPacksChange);
   status.update((s) => ({ ...s, ready: queue.length }));
   void refill();
 }

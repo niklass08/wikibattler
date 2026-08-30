@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { computeProgress, collection } from '../src/lib/collection';
+import { computeProgress, collection, favourites } from '../src/lib/collection';
+import { disenchantValue } from '../src/lib/economy';
 import type { Card, Collection, Rarity } from '../src/lib/types';
 import { get } from 'svelte/store';
 
@@ -91,6 +92,67 @@ describe('collection.addCards foil handling', () => {
     collection.setImage(21, 'https://a/override.jpg');
     expect(get(collection)[20].card.image).toBe('https://a/new.jpg');
     expect(get(collection)[21].card.image).toBe('https://a/keep.jpg');
+    collection.reset();
+  });
+});
+
+describe('collection.disenchant', () => {
+  it('decrements a duplicate and returns its knowledge value', () => {
+    collection.reset();
+    favourites.reset();
+    collection.addCards([card(30, 'rare'), card(30, 'rare'), card(30, 'rare')]);
+    const got = collection.disenchant(30);
+    expect(got).toBe(disenchantValue(card(30, 'rare')));
+    expect(get(collection)[30].count).toBe(2);
+    collection.reset();
+  });
+
+  it('removes the last copy entirely', () => {
+    collection.reset();
+    favourites.reset();
+    collection.addCards([card(31, 'uncommon')]);
+    const got = collection.disenchant(31);
+    expect(got).toBe(disenchantValue(card(31, 'uncommon')));
+    expect(get(collection)[31]).toBeUndefined();
+    collection.reset();
+  });
+
+  it('clamps n to the copies held', () => {
+    collection.reset();
+    favourites.reset();
+    collection.addCards([card(32, 'common'), card(32, 'common'), card(32, 'common')]);
+    const got = collection.disenchant(32, 9);
+    expect(got).toBe(disenchantValue(card(32, 'common')) * 3);
+    expect(get(collection)[32]).toBeUndefined();
+    collection.reset();
+  });
+
+  it('refuses a favourited card', () => {
+    collection.reset();
+    favourites.reset();
+    collection.addCards([card(33, 'mythic'), card(33, 'mythic')]);
+    favourites.toggle(33);
+    expect(collection.disenchant(33)).toBe(0);
+    expect(get(collection)[33].count).toBe(2);
+    favourites.reset();
+    collection.reset();
+  });
+
+  it('disenchantDuplicates takes every non-favourite pile down to one', () => {
+    collection.reset();
+    favourites.reset();
+    collection.addCards([card(40, 'common'), card(40, 'common'), card(40, 'common')]); // 3
+    collection.addCards([card(41, 'rare'), card(41, 'rare')]); // 2
+    collection.addCards([card(42, 'uncommon'), card(42, 'uncommon')]); // 2, favourited
+    favourites.toggle(42);
+    const total = collection.disenchantDuplicates();
+    expect(total).toBe(
+      disenchantValue(card(40, 'common')) * 2 + disenchantValue(card(41, 'rare')) * 1
+    );
+    expect(get(collection)[40].count).toBe(1);
+    expect(get(collection)[41].count).toBe(1);
+    expect(get(collection)[42].count).toBe(2); // favourite untouched
+    favourites.reset();
     collection.reset();
   });
 });
