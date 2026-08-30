@@ -99,4 +99,15 @@ describe('app shell', () => {
     expect(body).toContain('Open a pack');
     expect(body).toContain('drawn live from Wikipedia');
   });
+
+  // The nav row is ~780px wide with every item showing; before the burger it
+  // pushed the page 405px past a 360px viewport and the whole app scrolled
+  // sideways. Keep the collapse mechanism wired up.
+  it('the nav ships a burger toggle wired to the menu', () => {
+    const { body } = render(App);
+    expect(body).toContain('class="burger');
+    expect(body).toContain('aria-controls="nav-menu"');
+    expect(body).toContain('id="nav-menu"');
+    expect(body).toContain('aria-expanded="false"');
+  });
 });
