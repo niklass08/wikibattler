@@ -480,7 +480,10 @@
     box-shadow: inset 0 0 90px rgb(0 0 0 / 0.55);
   }
   @media (max-width: 640px) {
-    .stage { grid-template-columns: 1fr; }
+    .stage {
+      grid-template-columns: 1fr;
+      padding: 14px;
+    }
   }
 
   .team {
@@ -488,6 +491,8 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    /* a grid item won't shrink past its content without this */
+    min-width: 0;
     padding: 12px;
     border-radius: var(--radius-sm);
     background: color-mix(in srgb, var(--surface) 70%, transparent);
@@ -556,15 +561,17 @@
   .hpnum { font-size: 12px; color: var(--text); }
   .hpnum i { color: var(--text-faint); font-style: normal; }
 
+  /* minmax(0,…) forces seven equal columns whatever the cards contain, so a
+     team's crest can never be wider than its panel (the same trick the team
+     builder's slots use) */
   .cards {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 5px;
     width: 100%;
-    flex-wrap: wrap;
   }
-  .team.b .cards { justify-content: flex-end; }
   .cardslot {
-    width: clamp(40px, 12%, 64px);
+    min-width: 0;
     animation: dealin 320ms var(--ease) backwards;
     animation-delay: calc(var(--i) * 45ms);
   }
@@ -572,7 +579,7 @@
     from { opacity: 0; transform: translateY(10px) rotate(-3deg); }
   }
   .team.striking .cardslot { animation: none; }
-  .dummy { font-size: 46px; line-height: 1; padding: 8px 0; }
+  .dummy { grid-column: 1 / -1; font-size: 46px; line-height: 1; padding: 8px 0; }
 
   .floats {
     position: absolute;
@@ -763,6 +770,24 @@
   @media (max-width: 820px) {
     .mini-btn {
       padding-block: 12px;
+    }
+  }
+
+  /* Stacked layout: the sides sit one above the other rather than facing each
+     other, so mirroring side B only shoves its name, HP and crest into the
+     panel edge. Must come after the base .team.b rules to win on source order. */
+  @media (max-width: 640px) {
+    .team.b {
+      align-items: flex-start;
+      text-align: left;
+    }
+    .team.b .hpwrap {
+      align-items: flex-start;
+    }
+    .team.b .hpbar .ghost,
+    .team.b .hpbar .fill {
+      right: auto;
+      left: 0;
     }
   }
 </style>
