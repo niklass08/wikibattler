@@ -37,10 +37,23 @@ type Buckets = Record<Rarity, Candidate[]>;
 const emptyBuckets = (): Buckets => ({ common: [], uncommon: [], rare: [], mythic: [] });
 const countAll = (b: Buckets): number => RARITIES.reduce((n, r) => n + b[r].length, 0);
 
-/** Source a rarity only once it falls below this. */
-const MIN: Record<Rarity, number> = { common: 4, uncommon: 3, rare: 2, mythic: 1 };
-/** ...then stock it to here, so one pass feeds several packs. */
-const FILL: Record<Rarity, number> = { common: 20, uncommon: 14, rare: 10, mythic: 4 };
+/**
+ * Enough of each rarity for one properly-shaped pack. The first phase of a
+ * sourcing pass tops these up before deepening anything, so even a cold start
+ * yields a 4C/2U/1R pack rather than a pile of one rarity.
+ */
+const SEED: Record<Rarity, number> = { common: 4, uncommon: 3, rare: 2, mythic: 1 };
+
+/**
+ * How deep to stock each bucket. The background stocker keeps working toward
+ * this the whole session, so the pool stays far ahead of consumption and a pack
+ * is essentially always assemblable with no request. Reaching it costs ~50
+ * background requests, paid once and persisted.
+ */
+const FILL: Record<Rarity, number> = { common: 100, uncommon: 100, rare: 100, mythic: 100 };
+
+/** Persisting the pool is a ~300 KB stringify, so don't do it on every step. */
+const PERSIST_EVERY_MS = 5_000;
 
 /** Requests a single sourcing pass may spend. `quick` = a player is waiting. */
 const BUDGET = 8;
@@ -142,7 +155,17 @@ function restoreCandidates(): void {
   }
 }
 
-function persistCandidates(): void {
+let persistDue = 0;
+
+/**
+ * Write the pool to localStorage. Throttled: the blob grows to a few hundred KB
+ * at full stock and the stocker would otherwise re-serialise it on every step.
+ * The pool is a cache, so losing the last few seconds of it costs nothing.
+ */
+function persistCandidates(force = false): void {
+  const now = Date.now();
+  if (!force && now < persistDue) return;
+  persistDue = now + PERSIST_EVERY_MS;
   safeSet(
     CANDIDATES_KEY,
     JSON.stringify({
@@ -285,22 +308,15 @@ async function sourceOne(rarity: Rarity): Promise<number> {
   return spent;
 }
 
-/**
- * Stock the random pool. Returns immediately (no network) unless a bucket has
- * fallen below `MIN` — so most pack builds cost nothing. `budget` caps the
- * requests one pass may spend.
- */
-async function fillRandom(budget: number, force = false): Promise<number> {
-  if (!force && !RARITIES.some((r) => buckets[r].length < MIN[r])) return 0;
-
+/** Stock the pool toward `FILL`. `budget` caps the requests one pass may spend. */
+async function fillRandom(budget: number): Promise<number> {
   let spent = 0;
 
-  // Phase 1 — one step per starved band, cheapest-and-most-needed first, so
-  // even a tight `quick` budget yields a pack with all four rarities rather
-  // than spending everything deepening one band.
+  // Phase 1 — seed any rarity that can't yet contribute its share of a pack, so
+  // even a tight budget yields all four rarities rather than deepening one band.
   for (const r of RARITIES) {
     if (spent >= budget) break;
-    if (buckets[r].length < MIN[r]) spent += await sourceOne(r);
+    if (buckets[r].length < SEED[r]) spent += await sourceOne(r);
   }
 
   // Phase 2 — spend what's left deepening toward FILL, so the next several
@@ -414,22 +430,38 @@ export function assemblePack(): Card[] | null {
   restoreCandidates();
   if (!canAssemble()) return null;
   const cards = assembleSync();
-  persistCandidates();
+  persistCandidates(true); // cards were consumed — record it now
   return cards;
 }
 
+/** Alternates sourcing with link resolution once the pool can cover a pack. */
+let step = 0;
+
 /**
- * One unit of background work: a single sourcing request, or — when the pool is
- * already stocked — resolving one pooled card's exact link count so assembly
- * stays network-free.
+ * One unit of background work: a sourcing request, or resolving one pooled
+ * card's exact link count so assembly stays network-free.
+ *
+ * Until the pool can cover a pack, sourcing is all that matters. After that the
+ * two alternate — `FILL` is deep enough that the pool is rarely "full", so
+ * waiting for that would starve link counts forever.
  *
  * Returns the requests spent; 0 means there is nothing useful left to do.
  */
 export function stockStep(): Promise<number> {
   return withLock(async () => {
     restoreCandidates();
-    if (RARITIES.some((r) => buckets[r].length < FILL[r])) {
-      const spent = await fillRandom(2, true);
+    const needStock = RARITIES.some((r) => buckets[r].length < FILL[r]);
+    const linksFirst = canAssemble() && (!needStock || step++ % 2 === 1);
+
+    if (linksFirst) {
+      const spent = await resolveOneLinkCount();
+      if (spent > 0) {
+        persistCandidates();
+        return spent;
+      }
+    }
+    if (needStock) {
+      const spent = await fillRandom(2);
       persistCandidates();
       if (spent > 0) return spent;
     }
@@ -481,5 +513,7 @@ export function _resetSession(): void {
   fetchedMonths.clear();
   linkPool = [];
   restored = false;
+  persistDue = 0;
+  step = 0;
   chain = Promise.resolve();
 }

@@ -7,7 +7,14 @@ import {
   _setMinGap,
   type WikiPage
 } from '../src/lib/wiki';
-import { buildPack, assemblePack, poolReady, stockStep, _resetSession } from '../src/lib/draw';
+import {
+  buildPack,
+  assemblePack,
+  poolReady,
+  poolCount,
+  stockStep,
+  _resetSession
+} from '../src/lib/draw';
 
 _setMinGap(0);
 
@@ -73,11 +80,15 @@ function jsonResponse(body: unknown): Response {
   return { ok: true, status: 200, json: async () => body } as unknown as Response;
 }
 
+// `generator=random` returns fresh articles every call, so the ids must differ
+let randomSeq = 0;
 function randomPagesBody(n: number) {
+  const base = 1000 + randomSeq * 1000;
+  randomSeq++;
   const pages = Array.from({ length: n }, (_, i) => ({
-    pageid: 1000 + i,
-    title: `Random Article ${i}`,
-    fullurl: `https://en.wikipedia.org/wiki/Random_Article_${i}`,
+    pageid: base + i,
+    title: `Random Article ${base + i}`,
+    fullurl: `https://en.wikipedia.org/wiki/Random_Article_${base + i}`,
     length: 4000,
     extract: 'A modestly notable topic worth a card.',
     pageviews: { '2026-06-01': 5, '2026-06-02': 5 } // sum 10 -> monthly 5 -> common
@@ -203,6 +214,7 @@ const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
 describe('buildPack (live assembly)', () => {
   beforeEach(() => {
     _resetSession();
+    randomSeq = 0;
     fetchMock.mockClear();
     vi.stubGlobal('fetch', fetchMock);
   });
@@ -250,6 +262,7 @@ describe('buildPack (live assembly)', () => {
 describe('buildPack (candidate pooling)', () => {
   beforeEach(() => {
     _resetSession();
+    randomSeq = 0;
     fetchMock.mockClear();
     vi.stubGlobal('fetch', fetchMock);
   });
@@ -274,6 +287,7 @@ describe('buildPack (candidate pooling)', () => {
 describe('buildPack (cold quick build)', () => {
   beforeEach(() => {
     _resetSession();
+    randomSeq = 0;
     fetchMock.mockClear();
     vi.stubGlobal('fetch', fetchMock);
   });
@@ -291,6 +305,7 @@ describe('buildPack (cold quick build)', () => {
 describe('assemble-on-demand', () => {
   beforeEach(() => {
     _resetSession();
+    randomSeq = 0;
     fetchMock.mockClear();
     vi.stubGlobal('fetch', fetchMock);
   });
@@ -301,6 +316,18 @@ describe('assemble-on-demand', () => {
     expect(assemblePack()).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('keeps stocking far past a single pack, so it is always ready', async () => {
+    for (let i = 0; i < 400; i++) {
+      if ((await stockStep()) === 0) break;
+    }
+    // deep enough that many packs can be dealt without another request
+    expect(poolCount()).toBeGreaterThan(150);
+
+    fetchMock.mockClear();
+    for (let i = 0; i < 10; i++) expect(assemblePack()).toHaveLength(7);
+    expect(fetchMock).not.toHaveBeenCalled();
+  }, 30_000);
 
   it('once stocked, assembling a pack costs zero requests', async () => {
     for (let i = 0; i < 8 && !poolReady(); i++) await stockStep();
@@ -313,10 +340,9 @@ describe('assemble-on-demand', () => {
   }, 30_000);
 
   it('the stocker resolves exact link counts once the pool is stocked', async () => {
-    for (let i = 0; i < 8 && !poolReady(); i++) await stockStep();
-    // keep stepping — with the pool full, the only work left is link counts;
-    // step until there is none, so every pooled rare/mythic is resolved
-    for (let i = 0; i < 40; i++) {
+    // step until the stocker has nothing left to do: pool stocked as deep as
+    // the source allows, and every pooled rare/mythic given an exact count
+    for (let i = 0; i < 400; i++) {
       if ((await stockStep()) === 0) break;
     }
 

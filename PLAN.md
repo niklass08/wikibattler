@@ -36,12 +36,14 @@ Key pieces:
   `stockStep()` (which sources when a band is short and otherwise resolves one
   pooled rare/mythic's `parse` link count).
 
-  **Pooling is the performance design.** `fillRandom()` returns immediately
-  unless a bucket fell below `MIN`, then stocks to `FILL` — so one batched pass
-  (~20 candidates per request) feeds several packs and most builds do zero
-  network. It runs in two phases: one step per starved band (so even a tight
-  `quick` budget yields all four rarities), then deepen with what's left; both
-  under a hard request `BUDGET`. Sources: common ← `generator=random`;
+  **Pooling is the performance design.** The stocker works toward `FILL` = **100
+  of every rarity**, so the pool sits far ahead of consumption and a pack is
+  essentially always assemblable with no request. `fillRandom()` runs in two
+  phases: `SEED` any rarity that can't contribute its share of a pack (so even a
+  tight budget yields all four rarities), then deepen toward `FILL`; both under a
+  hard request `BUDGET`. Once the pool can cover a pack, stocking alternates with
+  link-count resolution so neither starves. Persisting a full pool is a ~300 KB
+  stringify, so it is throttled (`PERSIST_EVERY_MS`), forced when a pack is dealt. Sources: common ← `generator=random`;
   rare/mythic ← pageviews *top* lists; uncommon ← top-list tails then a **pooled**
   link harvest (one `parse` of a popular article yields hundreds of titles,
   enriched 20 at a time). Pools persist (`wikitcg:candidates:v2`);

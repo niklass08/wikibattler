@@ -63,11 +63,16 @@ a card assembled before its turn falls back to the estimate.
 Wikimedia rate-limits anonymous browser clients hard, so sourcing is batched
 (one request yields ~20 candidates) and a single pass stocks several packs.
 
-- a rarity is only sourced once it drops below `MIN`, and is then stocked to
-  `FILL` (`src/lib/draw.ts`); `stockStep()` is one unit of that work;
-- sourcing runs in two phases — one step per starved band first (so even a cold
-  "quick" build yields all four rarities), then deepening with the leftover
-  budget. Every pass has a hard request `BUDGET`;
+- the stocker works toward **`FILL` = 100 cards of every rarity**
+  (`src/lib/draw.ts`), so the pool stays far ahead of consumption and a pack is
+  essentially always assemblable; `stockStep()` is one unit of that work;
+- sourcing runs in two phases — `SEED` any rarity that can't yet contribute its
+  share of a pack (so even a cold start gives a 4C/2U/1R pack), then deepen
+  toward `FILL`. Every pass has a hard request `BUDGET`;
+- once the pool can cover a pack, stocking **alternates** with resolving exact
+  link counts, so neither starves the other;
+- persisting a full pool is a ~300 KB stringify, so it is throttled to once
+  every 5 s (forced when a pack is actually dealt);
 - the uncommon link harvest is **pooled**: one `parse` of a popular article
   yields hundreds of mid-popularity titles, enriched 20 at a time;
 - the pool persists (`wikitcg:candidates:v2`), so a reload opens instantly too;
