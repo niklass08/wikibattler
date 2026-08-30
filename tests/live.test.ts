@@ -152,21 +152,23 @@ function linkCountsBody(titles: string[]) {
   };
 }
 
-/** `generator=search` — 20 on-theme pages spread across the view bands. */
-function searchBody(offset: number) {
-  // a realistic-ish spread: a few rare/mythic near the top, then a long
-  // common/uncommon tail as you page deeper
+/** `generator=search` — 20 on-theme pages, banded by *offset* like the live API. */
+function searchBody(offset: number, query: string) {
+  // Mirrors the live API: a relevance-sorted search is ordered by prominence, so
+  // the OFFSET selects a popularity band. Probed against en.wikipedia with
+  // `hastemplate:"Infobox film"`: offset 0 → rare/mythic, ~100–400 → uncommon,
+  // 1200+ → common. These are 60-day view sums; monthlyFromViews60 halves them.
   const band = (i: number) => {
-    const rank = offset + i;
-    if (rank < 2) return 500_000; // mythic
-    if (rank < 6) return 200_000; // rare
-    if (rank < 14) return 40_000; // uncommon
-    return 3_000; // common
+    if (offset < 60) return i < 6 ? 1_200_000 : 500_000; // front → mythic / rare
+    if (offset < 700) return 40_000; // middle → uncommon (20k/month)
+    return 3_000; // deep → common (1.5k/month)
   };
+  // different queries must yield different articles, as they do live
+  const ns = 500_000 + (Math.abs(hash(query)) % 50) * 100_000;
   const pages = Array.from({ length: 20 }, (_, i) => ({
-    pageid: 500_000 + offset + i,
-    title: `Cinema ${offset + i}`,
-    fullurl: `https://en.wikipedia.org/wiki/Cinema_${offset + i}`,
+    pageid: ns + offset + i,
+    title: `${query.slice(0, 24)} ${offset + i}`,
+    fullurl: `https://en.wikipedia.org/wiki/T_${ns + offset + i}`,
     length: 55_000,
     extract: 'An article about a film directed by someone.',
     categories: [
@@ -186,7 +188,8 @@ const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
   }
   if (url.includes('generator=random')) return jsonResponse(randomPagesBody(20));
   if (url.includes('generator=search')) {
-    return jsonResponse(searchBody(Number(new URL(url).searchParams.get('gsroffset') ?? 0)));
+    const q = new URL(url).searchParams;
+    return jsonResponse(searchBody(Number(q.get('gsroffset') ?? 0), q.get('gsrsearch') ?? ''));
   }
   if (url.includes('action=parse')) return jsonResponse(linksBody());
   const titles = new URL(url).searchParams.get('titles') ?? '';
@@ -256,5 +259,77 @@ describe('buildPack (live assembly)', () => {
     const rnd = await buildPack();
     const themed = await buildPack({ theme: 'cinema' });
     expect(rnd.filter((c) => themed.some((d) => d.id === c.id))).toHaveLength(0);
+  }, 30_000);
+});
+
+// The pool is the whole point of the sourcing rework: one batched pass stocks
+// several packs, so consecutive builds must not touch the network.
+describe('buildPack (candidate pooling)', () => {
+  beforeEach(() => {
+    _resetSession();
+    fetchMock.mockClear();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('a themed pack sources once, then later packs of that theme are free', async () => {
+    await buildPack({ theme: 'cinema' });
+    // three banded search offsets, not the old 12-request sweep
+    const firstSearches = fetchMock.mock.calls.filter((c) =>
+      String(c[0]).includes('generator=search')
+    );
+    expect(firstSearches.length).toBeLessThanOrEqual(3);
+
+    fetchMock.mockClear();
+    const second = await buildPack({ theme: 'cinema' });
+    const third = await buildPack({ theme: 'cinema' });
+    expect(second).toHaveLength(7);
+    expect(third).toHaveLength(7);
+    // drawn straight from the pool — only per-card link lookups may fire
+    const searches = fetchMock.mock.calls.filter((c) => String(c[0]).includes('generator=search'));
+    expect(searches).toHaveLength(0);
+  }, 30_000);
+
+  it('each theme keeps its own pool — switching back and forth re-sources nothing', async () => {
+    await buildPack({ theme: 'cinema' });
+    await buildPack({ theme: 'music' });
+    fetchMock.mockClear();
+
+    // back to cinema, then music again: both pools are still stocked
+    await buildPack({ theme: 'cinema' });
+    await buildPack({ theme: 'music' });
+    const searches = fetchMock.mock.calls.filter((c) => String(c[0]).includes('generator=search'));
+    expect(searches).toHaveLength(0);
+  }, 30_000);
+
+  it('consecutive random packs reuse the pool instead of re-sourcing', async () => {
+    await buildPack();
+    fetchMock.mockClear();
+    const b = await buildPack();
+    expect(b).toHaveLength(7);
+    // no candidate sourcing — random/enrich/parse-links only for the rare stat
+    const sourcing = fetchMock.mock.calls.filter((c) => {
+      const u = String(c[0]);
+      return u.includes('generator=random') || u.includes('/metrics/pageviews/top/');
+    });
+    expect(sourcing).toHaveLength(0);
+  }, 30_000);
+});
+
+// A cold "quick" build (player waiting on an empty queue) must still produce a
+// normal-shaped pack — an earlier version spent its whole budget on the rare
+// bands and returned a pack with no commons at all.
+describe('buildPack (cold quick build)', () => {
+  beforeEach(() => {
+    _resetSession();
+    fetchMock.mockClear();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('fills every rarity band on a tight budget', async () => {
+    const pack = await buildPack({ quick: true });
+    expect(pack).toHaveLength(7);
+    expect(pack.filter((c) => c.rarity === 'common').length).toBeGreaterThanOrEqual(2);
   }, 30_000);
 });

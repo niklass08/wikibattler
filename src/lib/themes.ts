@@ -16,12 +16,21 @@ export interface ThemeDef {
   /** hex — the pack's colour code */
   color: string;
   /**
-   * Primary sourcing query — `hastemplate:` clauses matching the theme's infobox
-   * template(s). An infobox is an authoritative topic signal, far cleaner than
-   * keyword matching.
+   * Infobox templates that mark an article as belonging to this theme. An
+   * infobox is an authoritative topic signal, far cleaner than keyword matching.
+   *
+   * A LIST, queried **one at a time** — CirrusSearch does not union
+   * `hastemplate:A OR hastemplate:B` (it silently returns almost nothing), so
+   * `draw.ts` rotates through these across sourcing passes instead. Most
+   * representative template first; it is the one used most.
    */
-  infobox: string;
-  /** Keyword fallback (`gsrsearch`) if the infobox query comes up short. */
+  infobox: string[];
+  /**
+   * Run the `deriveTags` gate even on infobox hits. For themes whose template is
+   * broader than the theme (plants share `Speciesbox` with every other taxon).
+   */
+  verify?: boolean;
+  /** Keyword fallback (`gsrsearch`) for themes with no usable infobox. */
   search: string;
 }
 
@@ -66,40 +75,33 @@ const COLOR: Record<Tag, string> = {
 };
 
 /**
- * `hastemplate:` sourcing queries. Template names are the common English
- * Wikipedia infobox templates for each topic; if one is wrong or too narrow the
- * keyword `SEARCH` fallback below kicks in.
+ * Infobox templates per theme, most representative first. Every name here was
+ * checked against the live API for a non-zero `hastemplate:` hit count; if one
+ * ever goes stale the keyword `SEARCH` fallback below covers the theme.
  */
-const INFOBOX: Record<Tag, string> = {
-  cinema: 'hastemplate:"Infobox film"',
-  music:
-    'hastemplate:"Infobox album" OR hastemplate:"Infobox song" OR hastemplate:"Infobox musical artist"',
-  sport:
-    'hastemplate:"Infobox football biography" OR hastemplate:"Infobox basketball biography" OR hastemplate:"Infobox NFL biography" OR hastemplate:"Infobox cricketer" OR hastemplate:"Infobox tennis biography"',
-  politics: 'hastemplate:"Infobox officeholder" OR hastemplate:"Infobox political party"',
-  war:
-    'hastemplate:"Infobox military conflict" OR hastemplate:"Infobox military person" OR hastemplate:"Infobox weapon"',
-  history:
-    'hastemplate:"Infobox historical event" OR hastemplate:"Infobox monarch" OR hastemplate:"Infobox former country"',
-  science:
-    'hastemplate:"Chembox" OR hastemplate:"Infobox element" OR hastemplate:"Infobox physical quantity" OR hastemplate:"Infobox spaceflight"',
-  geography:
-    'hastemplate:"Infobox settlement" OR hastemplate:"Infobox country" OR hastemplate:"Infobox river" OR hastemplate:"Infobox mountain" OR hastemplate:"Infobox islands"',
-  arts:
-    'hastemplate:"Infobox artwork" OR hastemplate:"Infobox book" OR hastemplate:"Infobox writer" OR hastemplate:"Infobox artist"',
-  games: 'hastemplate:"Infobox video game" OR hastemplate:"Infobox game"',
-  nature: 'hastemplate:"Speciesbox" OR hastemplate:"Taxobox" OR hastemplate:"Automatic taxobox"',
-  business: 'hastemplate:"Infobox company"',
-  religion:
-    'hastemplate:"Infobox religion" OR hastemplate:"Infobox deity" OR hastemplate:"Infobox Christian denomination"',
-  plants: 'hastemplate:"Speciesbox" (plant OR flora OR tree OR flower OR shrub OR fern)',
-  scientists: 'hastemplate:"Infobox scientist"',
-  disease:
-    'hastemplate:"Infobox medical condition" OR hastemplate:"Infobox medical condition (new)"',
-  // ships use a modular infobox hastemplate: can't see — the keyword fallback covers them
-  vehicles:
-    'hastemplate:"Infobox automobile" OR hastemplate:"Infobox aircraft" OR hastemplate:"Infobox locomotive" OR hastemplate:"Infobox rocket"'
+const INFOBOX: Record<Tag, string[]> = {
+  cinema: ['Infobox film'],
+  music: ['Infobox album', 'Infobox song', 'Infobox musical artist'],
+  sport: ['Infobox football biography', 'Infobox basketball biography', 'Infobox cricketer'],
+  politics: ['Infobox officeholder', 'Infobox political party'],
+  war: ['Infobox military conflict', 'Infobox military person', 'Infobox weapon'],
+  history: ['Infobox former country', 'Infobox monarch', 'Infobox historical event'],
+  science: ['Chembox', 'Infobox element', 'Infobox physical quantity'],
+  geography: ['Infobox settlement', 'Infobox river', 'Infobox mountain'],
+  arts: ['Infobox book', 'Infobox artwork', 'Infobox writer'],
+  games: ['Infobox video game'],
+  nature: ['Speciesbox', 'Automatic taxobox'],
+  business: ['Infobox company'],
+  religion: ['Infobox religion', 'Infobox deity'],
+  // Speciesbox covers every taxon, so plant hits are confirmed with deriveTags
+  plants: ['Speciesbox'],
+  scientists: ['Infobox scientist'],
+  disease: ['Infobox medical condition'],
+  vehicles: ['Infobox automobile', 'Infobox aircraft', 'Infobox locomotive']
 };
+
+/** Themes whose infobox is broader than the theme — gate hits with deriveTags. */
+const VERIFY: Partial<Record<Tag, boolean>> = { plants: true };
 
 const SEARCH: Record<Tag, string> = {
   cinema: 'film OR movie OR cinema OR "film director" OR actor OR screenplay',
@@ -124,7 +126,14 @@ const SEARCH: Record<Tag, string> = {
 export const THEMES: Record<Tag, ThemeDef> = Object.fromEntries(
   TAGS.map((t) => [
     t,
-    { label: TAG_LABEL[t], icon: ICON[t], color: COLOR[t], infobox: INFOBOX[t], search: SEARCH[t] }
+    {
+      label: TAG_LABEL[t],
+      icon: ICON[t],
+      color: COLOR[t],
+      infobox: INFOBOX[t],
+      verify: VERIFY[t] ?? false,
+      search: SEARCH[t]
+    }
   ])
 ) as Record<Tag, ThemeDef>;
 

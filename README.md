@@ -45,22 +45,33 @@ When an article has no lead image of its own, `wiki.backupImage()` pulls the fir
 "content" image from the REST media-list (Wikipedia's own curated gallery set);
 articles with nothing usable get a title-tinted typographic card.
 
+### The candidate pool
+
+Wikimedia rate-limits anonymous browser clients hard, so the engine is built
+around **pooling**: sourcing is batched (one request yields ~20 candidates) and a
+single pass stocks several packs. **Most builds do no network at all** — they
+just draw from the pool.
+
+- a rarity is only sourced once it drops below `MIN`, and is then stocked to
+  `FILL` (`src/lib/draw.ts`);
+- sourcing runs in two phases — one step per starved band first (so even a cold
+  "quick" build yields all four rarities), then deepening with the leftover
+  budget. Every pass has a hard request `BUDGET`;
+- the uncommon link harvest is **pooled**: one `parse` of a popular article
+  yields hundreds of mid-popularity titles, enriched 20 at a time;
+- pools persist (`wikitcg:candidates:v2`, `wikitcg:themed-candidates:v1`), and
+  `warmBuckets()` / `warmTheme()` top them up while the player reads a pack;
+- **requests are serial** — `wiki.ts` runs 1 in flight with a ~500 ms gap
+  (Wikimedia's ask for anon clients);
+- **exact link counts only for rare/mythic** (one `parse` each); the rest
+  estimate from byte length *and category count*, so strength doesn't collapse
+  into a function of defence (which is bytes);
+- a **circuit breaker** trips only on a *sustained* block (a 429 surviving all
+  its backoffs), then fails fast for 30 s so a retry storm can't build.
+
 `src/lib/packQueue.ts` keeps ~3 fully-built packs ready in the background
-(persisted to `localStorage`), so opening one is instant. Wikimedia rate-limits
-anonymous browser clients hard, so a build is kept lean:
-
-- **requests are serial** — `wiki.ts` scheduler runs 1 in flight with a ~500 ms
-  gap (Wikimedia's stated ask for anon clients);
-- **exact link counts only for rare/mythic** (one `parse` call each); common and
-  uncommon estimate strength from wikitext byte length — no extra request;
-- **candidate buckets persist** (`wikitcg:candidates:v1`); `warmBuckets()` tops
-  them up in small bounded steps while the player looks at a pack;
-- a **circuit breaker** trips only on a *sustained* block (a 429 that survives
-  all its backoffs), then fails fast for 30 s so a retry storm can't build;
-- the first pack for a waiting player is built in a **"quick" mode**.
-
-If the API is rate-limiting / unreachable and the queue is empty, the pack screen
-shows an error + retry.
+(persisted), so opening one is instant. If the API is rate-limiting / unreachable
+and the queue is empty, the pack screen shows an error + retry.
 
 Rarity/stat thresholds live in `src/lib/rarity.ts`.
 
@@ -73,16 +84,30 @@ Rarity/stat thresholds live in `src/lib/rarity.ts`.
   (`wikitcg:knowledge:v1`, `:owned-packs:v1`, `:active-pack:v1`) + `buyPacks()`.
 - **`src/lib/themes.ts`** — per-theme colour + icon + the `gsrsearch` query that
   sources on-theme candidates.
-- **Thematic pack building** (`draw.ts`): `buildPack({ theme })` sources candidates
-  by **infobox template** — `THEMES[t].infobox` is a `hastemplate:"Infobox film"`
-  (etc.) query, which is an authoritative topic signal (no keyword noise); a
-  keyword `search` backs it up if a template is too narrow. `generator=search
-  &gsrsort=relevance` with page 0 for the theme's flagship rare/mythic articles
-  then a random offset for variety. The theme tag is forced onto every card and
-  the same `RarityPools` goes to the unchanged `generatePack`. Costs about the
-  same handful of requests as a random pack. `packQueue` follows `activePack`,
-  caps a themed queue at the number owned, and stashes the other type's built
-  packs for a fast switch-back.
+- **Thematic pack building** (`draw.ts`): `buildPack({ theme })` sources by
+  **infobox template** — `THEMES[t].infobox` is a `hastemplate:"Infobox film"`
+  query, an authoritative topic signal with no keyword noise (a keyword `search`
+  backs it up when a theme has no usable infobox).
+
+  A relevance-sorted search is ordered by prominence, so the **offset selects a
+  rarity band** — verified live against en.wikipedia:
+
+  | `hastemplate:"Infobox film"` | band |
+  |---|---|
+  | offset 0 | rare / mythic |
+  | offset ~100–400 | uncommon |
+  | offset 1200+ | common |
+
+  So three requests at three offsets stock a full rarity spread. **Each theme
+  keeps its own pool and its own cursors**, so holding several themed packs at
+  once costs nothing extra and switching between them re-sources nothing. Cursors
+  advance, so a pool never re-fetches a page it already has. `span` is learned
+  per theme (halved when a page comes back empty) so small themes page shallower.
+
+  The theme tag is forced onto every card and the same `RarityPools` goes to the
+  unchanged `generatePack`. `packQueue` follows `activePack`, caps a themed queue
+  at the number owned, and stashes the other type's built packs for a fast
+  switch-back.
 
 ## Deploy
 

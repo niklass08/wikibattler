@@ -11,7 +11,7 @@
  */
 import { get, writable } from 'svelte/store';
 import type { Card } from './types';
-import { buildPack, warmBuckets, bucketsWarm } from './draw';
+import { buildPack, warmBuckets, bucketsWarm, warmTheme, themeWarm } from './draw';
 import { applyMythicSignatures } from './signature';
 import { setFetchMode } from './wiki';
 import { activePack, ownedPacks, type ActivePack } from './shop';
@@ -116,8 +116,15 @@ async function refill(force = false): Promise<void> {
     }
     if (gen === switchGen) {
       status.update((s) => ({ ...s, warming: false, error: null, switching: null }));
-      // random queue full — pre-stock candidate buckets so the next builds are fast
-      if (started && activeTag === 'random' && !bucketsWarm()) void warmBuckets().catch(() => {});
+      // queue full — pre-stock this type's candidate pool so the next builds
+      // need no sourcing at all
+      if (started) {
+        if (activeTag === 'random') {
+          if (!bucketsWarm()) void warmBuckets().catch(() => {});
+        } else if (!themeWarm(activeTag)) {
+          void warmTheme(activeTag).catch(() => {});
+        }
+      }
     }
   } catch (err) {
     if (gen === switchGen) {
@@ -184,7 +191,10 @@ export function take(): Card[] | null {
   persist();
   // an empty queue means someone is about to wait — build the next one fast
   if (!pack || queue.length === 0) urgent = true;
-  void refill();
+  // Deferred: the caller consumes an owned themed pack synchronously right after
+  // this returns, and refill() reads that count. Refilling first would build a
+  // themed pack the player no longer owns, only to discard it on the switch.
+  queueMicrotask(() => void refill());
   // packs queued before a mechanic shipped need a top-up (mythic signatures);
   // applyMythicSignatures is a no-op for a card that already has one
   return pack ? applyMythicSignatures(pack) : null;

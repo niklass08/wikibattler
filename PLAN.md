@@ -25,15 +25,23 @@ Key pieces:
   (they'd force a CORS preflight the API won't answer), 250 ms inter-request
   throttle, retry with `Retry-After`. `backupImage(title)` fills card art for
   articles with no lead image, from the REST `media-list` gallery set.
-- `src/lib/draw.ts` — `buildPack()`: fill a candidate bucket per rarity from the
-  right source, hand it to the unchanged pure `generatePack()` (pack.ts), then
-  set each card's strength — an exact `parse` link count for rare/mythic, a
-  byte-length estimate (`estLinks`) for common/uncommon so no extra request.
-  Sources: common ← `generator=random`; rare/mythic ← pageviews *top* lists;
-  uncommon ← top-list tails + links harvested off popular articles. Buckets and
-  sourcing progress are **persisted** (`wikitcg:candidates:v1`); `warmBuckets()`
-  tops them up in small bounded steps while the player looks at a pack. A shared
-  lock serialises `buildPack` and `warmBuckets`.
+- `src/lib/draw.ts` — `buildPack()`: draw from a **pooled** candidate bucket per
+  rarity, hand it to the unchanged pure `generatePack()` (pack.ts), then set each
+  card's strength — an exact `parse` link count for rare/mythic, an estimate from
+  bytes **and category count** for the rest (`estLinks`; category count keeps
+  strength from becoming a function of defence, which is bytes).
+
+  **Pooling is the performance design.** `fillRandom()` returns immediately
+  unless a bucket fell below `MIN`, then stocks to `FILL` — so one batched pass
+  (~20 candidates per request) feeds several packs and most builds do zero
+  network. It runs in two phases: one step per starved band (so even a tight
+  `quick` budget yields all four rarities), then deepen with what's left; both
+  under a hard request `BUDGET`. Sources: common ← `generator=random`;
+  rare/mythic ← pageviews *top* lists; uncommon ← top-list tails then a **pooled**
+  link harvest (one `parse` of a popular article yields hundreds of titles,
+  enriched 20 at a time). Pools persist (`wikitcg:candidates:v2`);
+  `warmBuckets()` / `warmTheme()` top up while the player reads a pack. A shared
+  lock serialises builds and warms.
 - `src/lib/packQueue.ts` — ~3 fully-built packs kept ready in the background,
   persisted to `localStorage`. `take()` is synchronous; the queue refills after
   and then calls `warmBuckets()`. An empty queue flips fetch mode to `fg` and
@@ -469,16 +477,22 @@ Export/import collection as JSON — nice, cheap, do it if time allows.
 - **`src/lib/themes.ts`** — per-`Tag` `{ label, icon, color, search }`. Colour is
   the single source of truth, applied via inline `style:--accent` (tokens.css
   untouched).
-- **Thematic pack sourcing** (`draw.ts`): `buildPack({ theme })` fills a separate
-  `themedBuckets` (one theme active at a time, `usedIds` shared) from
-  `wiki.searchEnriched` — the primary query is `THEMES[t].infobox`, a
-  `hastemplate:"Infobox …"` clause (an infobox is an authoritative topic signal
-  — cleaner than keyword matching and it works where Wikidata SPARQL times out
-  on people/occupations); `THEMES[t].search` keyword query backs it up if the
-  template is too narrow. `gsrsort=relevance` with page 0 (flagship rare/mythic)
-  then a random offset for variety. The theme tag is forced onto every card
-  (`assembleFrom` `forceTag`). ~4–6 requests, same as a random pack. Themed
-  buckets not persisted.
+- **Thematic pack sourcing** (`draw.ts`): `buildPack({ theme })` draws from a
+  **per-theme pool** (`themed: Map<Tag, ThemeState>`, `usedIds` shared) stocked
+  by `wiki.searchEnriched`. Primary query is `THEMES[t].infobox`, a
+  `hastemplate:"Infobox …"` clause — an authoritative topic signal, cleaner than
+  keyword matching and it works where Wikidata SPARQL times out on
+  people/occupations; `THEMES[t].search` backs it up when a theme has no usable
+  infobox (that path keeps the `deriveTags` gate, since it matches prose).
+
+  **Offset selects the rarity band.** A relevance-sorted search is ordered by
+  prominence — probed live: `Infobox film` offset 0 → rare/mythic, ~100–400 →
+  uncommon, 1200+ → common. `bandOffset()` therefore rotates through three
+  fractions of a per-theme learned `span` (halved whenever a page returns empty,
+  so small themes page shallower). Three requests stock a full spread of ~40
+  candidates ⇒ several packs. Cursors advance, so no page is ever re-fetched.
+  Pools persist (`wikitcg:themed-candidates:v1`). The theme tag is forced onto
+  every card (`assembleFrom` `forceTag`).
 - **`packQueue`** subscribes to `activePack` + `ownedPacks`: `target()` caps a
   themed queue at `min(owned, MAX_PREFETCH)`; a type switch bumps `switchGen`
   (discards stale in-flight builds), stashes the old queue in memory, rebuilds;

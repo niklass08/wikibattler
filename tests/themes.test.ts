@@ -11,8 +11,15 @@ describe('THEMES', () => {
       expect(d.label.length, t).toBeGreaterThan(0);
       expect(d.icon.length, t).toBeGreaterThan(0);
       expect(d.search.length, t).toBeGreaterThan(3);
-      expect(d.infobox, t).toContain('hastemplate:');
       expect(d.color, t).toMatch(/^#[0-9a-f]{6}$/i);
+      // template names are queried one at a time — CirrusSearch won't union
+      // `hastemplate:` clauses, so an entry must never contain its own operator
+      expect(d.infobox.length, t).toBeGreaterThan(0);
+      for (const tpl of d.infobox) {
+        expect(tpl, t).not.toContain('hastemplate:');
+        expect(tpl, t).not.toContain(' OR ');
+        expect(tpl.length, t).toBeGreaterThan(3);
+      }
     }
   });
 

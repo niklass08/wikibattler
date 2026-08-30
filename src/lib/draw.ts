@@ -1,14 +1,25 @@
 /**
- * Live pack assembly. Fills a candidate pool per rarity from the right API
- * source, then hands it to the pure `generatePack()` from pack.ts (a 4C/2U/1R
- * modal pack where every slot can roll upgrades).
+ * Live pack assembly. Keeps a pool of scored candidates per rarity and hands it
+ * to the pure `generatePack()` from pack.ts (a 4C/2U/1R modal pack where every
+ * slot can roll upgrades).
+ *
+ * The pool is the point: sourcing is batched (one request yields ~20 candidates)
+ * so a single sourcing pass feeds several packs. Most builds do **no** network
+ * at all — they just draw from the pool. Sourcing only kicks in when a bucket
+ * falls below `MIN`, and then fills it to `FILL`.
  *
  * Sources per rarity:
- *   common   — generator=random (the overwhelming majority of articles)
- *   rare     — pageviews "top" lists, views in the rare band
- *   mythic   — pageviews "top" lists, views above the mythic threshold
- *   uncommon — "top" list tails, then outgoing links of a popular article
- *              (the mid-popularity middle is too thin in the top 1000)
+ *   rare/mythic — the pageviews "top" lists (one cached request lists 1000
+ *                 titles with real view counts, already in the rare+ bands)
+ *   uncommon    — outgoing links of a popular article: one `parse` harvests
+ *                 hundreds of mid-popularity titles into a pool, then they are
+ *                 enriched 20 at a time
+ *   common      — generator=random (the overwhelming majority of articles)
+ *
+ * Themed packs source instead by *search offset band*: a relevance-sorted search
+ * for the theme's infobox template is ordered by prominence, so the first page
+ * holds its rare/mythic articles, the middle its uncommons and the deep pages
+ * its commons. Three requests therefore stock a full rarity spread.
  */
 import type { Card, Rarity } from './types';
 import { RARITIES } from './types';
@@ -20,33 +31,46 @@ import { deriveTags, type Tag } from './tags';
 import { THEMES } from './themes';
 import * as wiki from './wiki';
 
+const PACK_SIZE = 7;
+
+interface Candidate {
+  page: wiki.WikiPage;
+  monthlyViews: number;
+}
+
 type Buckets = Record<Rarity, Candidate[]>;
 const emptyBuckets = (): Buckets => ({ common: [], uncommon: [], rare: [], mythic: [] });
+const countAll = (b: Buckets): number => RARITIES.reduce((n, r) => n + b[r].length, 0);
+
+/** Source a rarity only once it falls below this. */
+const MIN: Record<Rarity, number> = { common: 4, uncommon: 3, rare: 2, mythic: 1 };
+/** ...then stock it to here, so one pass feeds several packs. */
+const FILL: Record<Rarity, number> = { common: 20, uncommon: 14, rare: 10, mythic: 4 };
+
+/** Requests a single sourcing pass may spend. `quick` = a player is waiting. */
+const BUDGET = 8;
+const QUICK_BUDGET = 3;
 
 /**
- * How many candidates to stock per rarity before assembling a pack. Above the
- * modal 4C / 2U / 1R so upgrade rolls have cards to draw from; generatePack's
- * fallback covers the rare case where they don't.
+ * Themed: a pool is "stocked" when every band it can supply meets its quota
+ * (see BAND_QUOTA) and it holds at least this many candidates. The budget is 3
+ * because there are three bands to cover — a tighter one would leave a band
+ * empty and produce a pack that is all one rarity.
  */
-const TARGET: Record<Rarity, number> = { common: 7, uncommon: 5, rare: 4, mythic: 2 };
+const THEMED_MIN = 9;
+const THEMED_BUDGET = 3;
+
+const CANDIDATES_KEY = 'wikitcg:candidates:v2';
+const THEMED_KEY = 'wikitcg:themed-candidates:v1';
 
 /**
- * A "quick" first pack after a cold start (empty queue, player waiting): stock
- * the bare minimum so the first open is fast; the queue refills properly after.
+ * Estimated ns-0 link count, used when a card doesn't earn an exact `parse`
+ * call. Deliberately mixes byte length with category count: defence is derived
+ * from bytes, so a bytes-only estimate would make every card's strength a
+ * function of its defence.
  */
-const QUICK_TARGET: Record<Rarity, number> = { common: 5, uncommon: 2, rare: 2, mythic: 1 };
-
-/**
- * Background warm target — stock a little past what one pack needs so the next
- * couple of builds do less sourcing. Filled by `warmBuckets()` in small bounded
- * steps while the player is looking at a pack.
- */
-const WARM_TARGET: Record<Rarity, number> = { common: 12, uncommon: 8, rare: 6, mythic: 3 };
-
-const CANDIDATES_KEY = 'wikitcg:candidates:v1';
-
-/** Rough internal-link count from wikitext byte length — ~1 ns-0 link per 190 B. */
-const estLinks = (bytes: number): number => Math.max(1, Math.round(bytes / 190));
+const estLinks = (page: wiki.WikiPage): number =>
+  Math.max(1, Math.round((page.bytes / 190) * 0.55 + (page.categories?.length ?? 0) * 12 * 0.45));
 
 const shuffle = <T>(a: T[]): T[] => {
   for (let i = a.length - 1; i > 0; i--) {
@@ -56,23 +80,15 @@ const shuffle = <T>(a: T[]): T[] => {
   return a;
 };
 const randomOf = <T>(a: T[]): T | undefined => a[Math.floor(Math.random() * a.length)];
+const looseEq = (a: string, b: string) =>
+  a.replace(/ /g, '_').toLowerCase() === b.replace(/ /g, '_').toLowerCase();
 
-interface Candidate {
-  page: wiki.WikiPage;
-  monthlyViews: number;
-}
+// --- session state ----------------------------------------------------------
 
-// --- session state (module-level; one run of the app) -----------------------
-
-const buckets: Record<Rarity, Candidate[]> = {
-  common: [],
-  uncommon: [],
-  rare: [],
-  mythic: []
-};
+const buckets: Buckets = emptyBuckets();
 /** pageids already dealt into a pack — never reuse. */
 const usedIds = new Set<number>();
-/** pageids sitting in a bucket — avoid stocking duplicates. */
+/** pageids sitting in any bucket — avoid stocking duplicates. */
 const pendingIds = new Set<number>();
 
 /** Popular titles harvested from "top" months, not yet enriched. */
@@ -84,8 +100,10 @@ const topByRarity: Record<Rarity, wiki.TopArticle[]> = {
 };
 const topSeen = new Set<string>();
 const fetchedMonths = new Set<string>();
+/** Mid-popularity titles harvested from popular articles' links, not yet enriched. */
+let linkPool: string[] = [];
 
-// --- persistence: warm candidates survive a reload -------------------------
+// --- persistence ------------------------------------------------------------
 
 let restored = false;
 
@@ -104,31 +122,57 @@ function safeSet(k: string, v: string): void {
   }
 }
 
+function adopt(into: Buckets, from: Buckets | undefined): void {
+  for (const r of RARITIES) {
+    for (const c of from?.[r] ?? []) {
+      if (c?.page?.pageid && !usedIds.has(c.page.pageid) && !pendingIds.has(c.page.pageid)) {
+        into[r].push(c);
+        pendingIds.add(c.page.pageid);
+      }
+    }
+  }
+}
+
 function restoreCandidates(): void {
   if (restored) return;
   restored = true;
   try {
     const raw = safeGet(CANDIDATES_KEY);
-    if (!raw) return;
-    const s = JSON.parse(raw) as {
-      buckets?: Record<Rarity, Candidate[]>;
-      topByRarity?: Record<Rarity, wiki.TopArticle[]>;
-      topSeen?: string[];
-      fetchedMonths?: string[];
-    };
-    for (const r of RARITIES) {
-      for (const c of s.buckets?.[r] ?? []) {
-        if (c?.page?.pageid && !usedIds.has(c.page.pageid) && !pendingIds.has(c.page.pageid)) {
-          buckets[r].push(c);
-          pendingIds.add(c.page.pageid);
-        }
-      }
-      for (const t of s.topByRarity?.[r] ?? []) topByRarity[r].push(t);
+    if (raw) {
+      const s = JSON.parse(raw) as {
+        buckets?: Buckets;
+        topByRarity?: Record<Rarity, wiki.TopArticle[]>;
+        topSeen?: string[];
+        fetchedMonths?: string[];
+        linkPool?: string[];
+      };
+      adopt(buckets, s.buckets);
+      for (const r of RARITIES) for (const t of s.topByRarity?.[r] ?? []) topByRarity[r].push(t);
+      for (const t of s.topSeen ?? []) topSeen.add(t);
+      for (const m of s.fetchedMonths ?? []) fetchedMonths.add(m);
+      if (Array.isArray(s.linkPool)) linkPool = s.linkPool.slice(0, 400);
     }
-    for (const t of s.topSeen ?? []) topSeen.add(t);
-    for (const m of s.fetchedMonths ?? []) fetchedMonths.add(m);
   } catch {
     /* ignore a corrupt blob */
+  }
+  try {
+    const raw = safeGet(THEMED_KEY);
+    if (raw) {
+      const s = JSON.parse(raw) as Record<
+        string,
+        { buckets?: Buckets; span?: number; step?: number; dry?: number[] }
+      >;
+      for (const [tag, v] of Object.entries(s)) {
+        if (!(tag in THEMES)) continue;
+        const st = themeState(tag as Tag);
+        adopt(st.buckets, v.buckets);
+        if (typeof v.span === 'number' && v.span > 0) st.span = v.span;
+        if (typeof v.step === 'number' && v.step >= 0) st.step = v.step;
+        if (Array.isArray(v.dry) && v.dry.length === 3) st.dry = v.dry as [number, number, number];
+      }
+    }
+  } catch {
+    /* ignore */
   }
 }
 
@@ -139,18 +183,46 @@ function persistCandidates(): void {
       buckets,
       topByRarity,
       topSeen: [...topSeen],
-      fetchedMonths: [...fetchedMonths]
+      fetchedMonths: [...fetchedMonths],
+      linkPool: linkPool.slice(0, 400)
     })
   );
 }
 
-// Serialise everything that mutates the shared buckets — a background
-// `warmBuckets()` must not run concurrently with a `buildPack()`.
+function persistThemed(): void {
+  const out: Record<string, unknown> = {};
+  for (const [tag, s] of themed)
+    out[tag] = { buckets: s.buckets, span: s.span, step: s.step, dry: s.dry };
+  safeSet(THEMED_KEY, JSON.stringify(out));
+}
+
+// Serialise everything that mutates the pools — a background warm must not run
+// concurrently with a build.
 let chain: Promise<unknown> = Promise.resolve();
 function withLock<T>(fn: () => Promise<T>): Promise<T> {
   const run = chain.then(fn, fn);
   chain = run.catch(() => {});
   return run;
+}
+
+// --- shared helpers ---------------------------------------------------------
+
+function stashInto(target: Buckets, page: wiki.WikiPage, monthlyViews: number): boolean {
+  if (usedIds.has(page.pageid) || pendingIds.has(page.pageid)) return false;
+  if (!wiki.isPlayable(page)) return false;
+  pendingIds.add(page.pageid);
+  target[rarityFromViews(monthlyViews)].push({ page, monthlyViews });
+  return true;
+}
+
+function dropConsumed(source: Buckets): void {
+  for (const r of RARITIES) {
+    source[r] = source[r].filter((c) => {
+      const consumed = usedIds.has(c.page.pageid);
+      if (consumed) pendingIds.delete(c.page.pageid);
+      return !consumed;
+    });
+  }
 }
 
 function recentMonths(count: number, windowMonths: number): { y: number; m: number }[] {
@@ -173,13 +245,13 @@ function recentMonths(count: number, windowMonths: number): { y: number; m: numb
 /** Pull in more "top" months until `rarity` has titles to enrich (or we give up). */
 async function ensureTopSupply(rarity: Rarity, min = 8): Promise<void> {
   let guard = 0;
-  while (topByRarity[rarity].length < min && guard++ < 10) {
-    const next = recentMonths(1, 24).find((m) => !fetchedMonths.has(`${m.y}-${m.m}`));
+  while (topByRarity[rarity].length < min && guard++ < 3) {
+    const next = recentMonths(1, 36).find((m) => !fetchedMonths.has(`${m.y}-${m.m}`));
     if (!next) break;
     fetchedMonths.add(`${next.y}-${next.m}`);
     let list: wiki.TopArticle[];
     try {
-      list = await wiki.topMonth(next.y, next.m);
+      list = await wiki.topMonth(next.y, next.m); // 30-day localStorage cached
     } catch {
       continue;
     }
@@ -192,54 +264,257 @@ async function ensureTopSupply(rarity: Rarity, min = 8): Promise<void> {
   }
 }
 
-function stash(page: wiki.WikiPage, monthlyViews: number): void {
-  if (usedIds.has(page.pageid) || pendingIds.has(page.pageid)) return;
-  if (!wiki.isPlayable(page)) return;
-  pendingIds.add(page.pageid);
-  buckets[rarityFromViews(monthlyViews)].push({ page, monthlyViews });
+// --- random sourcing --------------------------------------------------------
+
+/** Enrich a batch of top-list titles into `buckets`, keeping their real views. */
+async function enrichTop(picks: wiki.TopArticle[]): Promise<void> {
+  const pages = await wiki.enrichTitles(picks.map((p) => p.title)).catch(() => []);
+  for (const page of pages) {
+    const known = picks.find((p) => looseEq(p.title, page.title));
+    stashInto(buckets, page, known ? known.views : wiki.monthlyFromViews60(page.views60 ?? 0));
+  }
 }
 
-const looseEq = (a: string, b: string) =>
-  a.replace(/ /g, '_').toLowerCase() === b.replace(/ /g, '_').toLowerCase();
+/**
+ * One sourcing step for a single rarity band. Returns the requests it spent —
+ * 0 means the source is exhausted and retrying won't help.
+ */
+async function sourceOne(rarity: Rarity): Promise<number> {
+  if (rarity === 'rare' || rarity === 'mythic') {
+    await ensureTopSupply(rarity);
+    const picks = topByRarity[rarity].splice(0, 20);
+    if (picks.length === 0) return 0;
+    await enrichTop(picks);
+    return 1;
+  }
 
-/** Top up one bucket to `need` candidates from its source. */
-async function topUp(rarity: Rarity, need: number, guardMax = 25): Promise<void> {
-  let guard = 0;
-  while (buckets[rarity].length < need && guard++ < guardMax) {
-    if (rarity === 'common') {
-      for (const page of await wiki.randomEnriched(20)) {
-        stash(page, wiki.monthlyFromViews60(page.views60 ?? 0));
-      }
-      continue;
-    }
+  if (rarity === 'common') {
+    // random mainspace articles are common almost by definition
+    const pages = await wiki.randomEnriched(20).catch(() => []);
+    if (pages.length === 0) return 1;
+    for (const page of pages) stashInto(buckets, page, wiki.monthlyFromViews60(page.views60 ?? 0));
+    return 1;
+  }
 
-    if (rarity === 'rare' || rarity === 'mythic') {
-      await ensureTopSupply(rarity);
-      const picks = topByRarity[rarity].splice(0, 20);
-      if (picks.length === 0) break;
-      const pages = await wiki.enrichTitles(picks.map((p) => p.title));
-      for (const page of pages) {
-        const known = picks.find((p) => looseEq(p.title, page.title));
-        stash(page, known ? known.views : wiki.monthlyFromViews60(page.views60 ?? 0));
-      }
-      continue;
-    }
+  // uncommon — first the tail of the top lists (they carry real view counts),
+  // then, since the mid-popularity middle is thin up there, a popular article's
+  // outgoing links. That harvest is pooled and persisted, so the `parse` is paid
+  // once per ~15 batches of candidates.
+  const fromTop = topByRarity.uncommon.splice(0, 20);
+  if (fromTop.length > 0) {
+    await enrichTop(fromTop);
+    return 1;
+  }
 
-    // uncommon: top-list tails, then harvest links off a popular article
-    await ensureTopSupply('rare');
-    let titles = topByRarity.uncommon.splice(0, 20).map((p) => p.title);
-    if (titles.length < 12) {
-      const seed = randomOf([...topByRarity.rare, ...topByRarity.mythic]);
-      if (seed) {
-        const links = shuffle(await wiki.linksOf(seed.title));
-        titles = titles.concat(links.slice(0, 20 - titles.length));
-      }
-    }
-    if (titles.length === 0) break;
-    for (const page of await wiki.enrichTitles(titles)) {
-      stash(page, wiki.monthlyFromViews60(page.views60 ?? 0));
+  let spent = 0;
+  if (linkPool.length < 20) {
+    // seed from a popular article already in the pool, so this keeps working
+    // once the un-enriched top lists have been drained
+    const seed = randomOf([...buckets.mythic, ...buckets.rare]);
+    const title = seed?.page.title ?? randomOf(topByRarity.rare)?.title;
+    if (!title) return 0;
+    spent++;
+    const links = await wiki.linksOf(title).catch(() => []);
+    if (links.length === 0) return spent;
+    linkPool.push(...shuffle(links).slice(0, 300));
+  }
+  if (linkPool.length === 0) return spent;
+  spent++;
+  for (const page of await wiki.enrichTitles(linkPool.splice(0, 20)).catch(() => [])) {
+    stashInto(buckets, page, wiki.monthlyFromViews60(page.views60 ?? 0));
+  }
+  return spent;
+}
+
+/**
+ * Stock the random pool. Returns immediately (no network) unless a bucket has
+ * fallen below `MIN` — so most pack builds cost nothing. `budget` caps the
+ * requests one pass may spend.
+ */
+async function fillRandom(budget: number, force = false): Promise<void> {
+  if (!force && !RARITIES.some((r) => buckets[r].length < MIN[r])) return;
+
+  let spent = 0;
+
+  // Phase 1 — one step per starved band, cheapest-and-most-needed first, so
+  // even a tight `quick` budget yields a pack with all four rarities rather
+  // than spending everything deepening one band.
+  for (const r of RARITIES) {
+    if (spent >= budget) break;
+    if (buckets[r].length < MIN[r]) spent += await sourceOne(r);
+  }
+
+  // Phase 2 — spend what's left deepening toward FILL, so the next several
+  // packs need no sourcing at all.
+  for (const r of RARITIES) {
+    while (spent < budget && buckets[r].length < FILL[r]) {
+      const used = await sourceOne(r);
+      if (used === 0) break;
+      spent += used;
     }
   }
+}
+
+// --- themed sourcing --------------------------------------------------------
+//
+// A relevance-sorted search is ordered by prominence, so the *offset* selects a
+// popularity band — verified against the live API:
+//
+//   hastemplate:"Infobox film"   offset    0 → rare/mythic
+//                                offset  100 → uncommon
+//                                offset 1200 → common
+//
+// So three requests at three offsets stock a full rarity spread. Each theme
+// keeps its own pool and its own cursors, so holding several themed packs at
+// once costs nothing extra and switching between them never re-sources.
+
+type Band = 0 | 1 | 2;
+const BANDS: Band[] = [0, 1, 2];
+/** What each band is for, and how much of it a themed pool wants. */
+const BAND_QUOTA: Record<Band, number> = { 0: 3, 1: 5, 2: 8 };
+const bandHave = (b: Buckets, band: Band): number =>
+  band === 0 ? b.rare.length + b.mythic.length : band === 1 ? b.uncommon.length : b.common.length;
+
+interface ThemeState {
+  buckets: Buckets;
+  /** learned usable depth of this theme's result set; halves when a page is empty */
+  span: number;
+  /** rotates every pass, so successive passes pull fresh pages and templates */
+  step: number;
+  /** per-band fetches that failed to grow that band — a theme with no rares
+   *  should stop asking for them rather than re-sourcing on every pack */
+  dry: [number, number, number];
+}
+
+const themed = new Map<Tag, ThemeState>();
+
+function themeState(theme: Tag): ThemeState {
+  let s = themed.get(theme);
+  if (!s) {
+    s = { buckets: emptyBuckets(), span: 2000, step: 0, dry: [0, 0, 0] };
+    themed.set(theme, s);
+  }
+  return s;
+}
+
+/** The offset for a band, as a fraction of the theme's learned span. */
+function bandOffset(s: ThemeState, band: Band): number {
+  const rot = s.step * 20;
+  if (band === 0) return rot % 60; // front → the theme's flagships: rare / mythic
+  if (band === 1) return Math.round(s.span * 0.06) + (rot % Math.max(20, Math.round(s.span * 0.2)));
+  return Math.round(s.span * 0.5) + (rot % Math.max(20, Math.round(s.span * 0.4))); // deep → common
+}
+
+/** Which band this theme's pool most needs, or null when it's covered. */
+function bandNeed(s: ThemeState): Band | null {
+  for (const band of BANDS) {
+    if (s.dry[band] >= 2) continue; // this theme simply hasn't got that band
+    if (bandHave(s.buckets, band) < BAND_QUOTA[band]) return band;
+  }
+  return null;
+}
+
+/**
+ * Stock one theme's pool. Returns immediately (no network) once every band is
+ * covered, so consecutive themed packs are instant.
+ *
+ * Band selection is need-driven rather than round-robin: a pack is 4 commons,
+ * 2 uncommons and a rare, so a pool that only has one band produces a pack of
+ * all one rarity. Each band maps to a search offset (see the note above).
+ */
+async function stockThemed(theme: Tag, budget: number): Promise<void> {
+  const s = themeState(theme);
+  if (bandNeed(s) === null && countAll(s.buckets) >= THEMED_MIN) return;
+
+  const def = THEMES[theme];
+  let spent = 0;
+
+  // Driven purely by which band is short — a total-count cap here would stop
+  // sourcing before the last band was ever fetched, leaving packs all one rarity.
+  while (spent < budget) {
+    const band = bandNeed(s);
+    if (band === null) break;
+    const before = bandHave(s.buckets, band);
+
+    // one template per request — CirrusSearch won't union `hastemplate:` clauses,
+    // so the theme's templates are rotated across passes instead
+    const tpl = def.infobox[(s.step + band) % Math.max(1, def.infobox.length)];
+    const query = tpl ? `hastemplate:"${tpl}"` : def.search;
+    let verify = def.verify || !tpl;
+
+    spent++;
+    let pages = await wiki
+      .searchEnriched(query, 20, 'relevance', bandOffset(s, band))
+      .catch(() => []);
+
+    if (pages.length === 0) {
+      if (bandOffset(s, band) > 0) {
+        // ran off the end of this theme's results — it's smaller than we thought
+        s.span = Math.max(120, Math.round(s.span / 2));
+      } else if (tpl && spent < budget) {
+        // the template found nothing at all — fall back to the keyword query,
+        // which needs the deriveTags gate because it matches on prose
+        spent++;
+        verify = true;
+        pages = await wiki.searchEnriched(def.search, 20, 'relevance', 0).catch(() => []);
+      }
+    }
+
+    for (const p of pages) {
+      if (verify && !deriveTags(p.categories, p.extract).includes(theme)) continue;
+      stashInto(s.buckets, p, wiki.monthlyFromViews60(p.views60 ?? 0));
+    }
+
+    // did that actually grow the band we were after?
+    if (bandHave(s.buckets, band) > before) s.dry[band] = 0;
+    else s.dry[band] += 1;
+    s.step += 1;
+  }
+}
+
+// --- assembly ---------------------------------------------------------------
+
+/**
+ * The theme-agnostic tail: let `generatePack()` choose the 7 with the guaranteed
+ * split, resolve strength, and apply the finishes.
+ */
+async function assembleFrom(source: Buckets, forceTag?: Tag): Promise<Card[]> {
+  const byId = new Map<number, Candidate>();
+  const pools: RarityPools = { common: [], uncommon: [], rare: [], mythic: [] };
+  for (const r of RARITIES) {
+    for (const c of source[r]) {
+      byId.set(c.page.pageid, c);
+      pools[r].push(toStub(c));
+    }
+  }
+
+  const chosen = generatePack(pools);
+  const cands = chosen.map((stub) => byId.get(stub.id)!);
+  for (const c of cands) usedIds.add(c.page.pageid);
+
+  const cards = await Promise.all(
+    cands.map(async (cand) => {
+      const rarity = rarityFromViews(cand.monthlyViews);
+      // Strength is the internal link count. An exact count is one `parse` call
+      // each, so only rare/mythic — where the stat is battle-relevant and there
+      // are at most one or two per pack — earn one.
+      const links =
+        rarity === 'rare' || rarity === 'mythic'
+          ? await wiki.linkCount(cand.page.title).catch(() => estLinks(cand.page))
+          : estLinks(cand.page);
+      // `pilicense=any` covers most lead art; the rest is resolved lazily (and
+      // persisted) by Card.svelte on reveal.
+      const card = wiki.toCard({ page: cand.page, monthlyViews: cand.monthlyViews, links });
+      if (forceTag) {
+        // the pack's theme is authoritative (infobox-sourced) — lead with it
+        card.tags = [forceTag, ...card.tags.filter((t) => t !== forceTag)].slice(0, 4);
+      }
+      return card;
+    })
+  );
+
+  dropConsumed(source);
+  return applyMythicSignatures(applyPackFoil(cards));
 }
 
 function toStub(c: Candidate): Card {
@@ -260,198 +535,69 @@ function toStub(c: Candidate): Card {
   };
 }
 
-/**
- * Stock the buckets to `targets`. `common` (random articles) is independent of
- * the top-list group, so the two run in parallel; the top-list rarities share
- * `topByRarity` and stay sequential among themselves.
- */
-async function stockBuckets(targets: Record<Rarity, number>, guardMax = 25): Promise<void> {
-  await Promise.all([
-    topUp('common', targets.common, guardMax),
-    (async () => {
-      await topUp('rare', targets.rare, guardMax);
-      await topUp('mythic', targets.mythic, guardMax);
-      await topUp('uncommon', targets.uncommon, guardMax);
-    })()
-  ]);
-}
+// --- public API -------------------------------------------------------------
 
-function dropConsumed(source: Buckets): void {
-  for (const r of RARITIES) {
-    source[r] = source[r].filter((c) => {
-      const consumed = usedIds.has(c.page.pageid);
-      if (consumed) pendingIds.delete(c.page.pageid);
-      return !consumed;
-    });
-  }
-}
-
-/**
- * The theme-agnostic assembly tail, shared by the random and themed paths: let
- * `generatePack()` choose the 7 with the guaranteed split, fetch link counts
- * (one batched call + parallel exact fallback), and apply the finishes.
- */
-async function assembleFrom(
-  source: Buckets,
-  opts: { persist: boolean; forceTag?: Tag }
-): Promise<Card[]> {
-  const byId = new Map<number, Candidate>();
-  const pools: RarityPools = { common: [], uncommon: [], rare: [], mythic: [] };
-  for (const r of RARITIES) {
-    for (const c of source[r]) {
-      byId.set(c.page.pageid, c);
-      pools[r].push(toStub(c));
-    }
-  }
-
-  const chosen = generatePack(pools);
-  if (chosen.length < 7) {
-    throw new Error('Not enough Wikipedia articles to fill a pack — retrying shortly.');
-  }
-
-  const cands = chosen.map((stub) => byId.get(stub.id)!);
-  for (const c of cands) usedIds.add(c.page.pageid);
-
-  const cards = await Promise.all(
-    cands.map(async (cand) => {
-      const rarity = rarityFromViews(cand.monthlyViews);
-      // Strength = internal link count. An exact count is one `parse` call each —
-      // too many for a browser client — so only rare/mythic (where the stat is
-      // battle-relevant and the article is big enough for the estimate to be
-      // shaky) get the real number; common/uncommon estimate from byte length.
-      const links =
-        rarity === 'rare' || rarity === 'mythic'
-          ? await wiki.linkCount(cand.page.title).catch(() => estLinks(cand.page.bytes))
-          : estLinks(cand.page.bytes);
-      // `pilicense=any` covers most lead art; the rest is resolved lazily
-      // (and persisted) by Card.svelte on reveal.
-      const card = wiki.toCard({ page: cand.page, monthlyViews: cand.monthlyViews, links });
-      if (opts.forceTag) {
-        // the pack's theme is authoritative (infobox-sourced) — lead with it
-        card.tags = [opts.forceTag, ...card.tags.filter((t) => t !== opts.forceTag)].slice(0, 4);
-      }
-      return card;
-    })
-  );
-
-  dropConsumed(source);
-  if (opts.persist) persistCandidates();
-  return applyMythicSignatures(applyPackFoil(cards));
-}
-
-// --- themed sourcing --------------------------------------------------------
-// Separate from the random `buckets` — one theme is active at a time. usedIds /
-// pendingIds stay shared so no article shows up in two packs.
-
-let themedTag: Tag | null = null;
-const themedBuckets: Buckets = emptyBuckets();
-/** pageids that failed the deriveTags check this session — never re-verify. */
-const themedRejects = new Set<number>();
-
-function clearThemed(): void {
-  for (const r of RARITIES) {
-    for (const c of themedBuckets[r]) pendingIds.delete(c.page.pageid);
-    themedBuckets[r] = [];
-  }
-  themedRejects.clear();
-  themedTag = null;
-}
-
-/**
- * stash() for a themed candidate. `verify` runs the deriveTags gate — on for
- * the noisy keyword fallback, off for the authoritative infobox query.
- */
-function stashThemed(
-  page: wiki.WikiPage,
-  monthlyViews: number,
-  theme: Tag,
-  verify: boolean
-): boolean {
-  const id = page.pageid;
-  if (usedIds.has(id) || pendingIds.has(id) || themedRejects.has(id)) return false;
-  if (!wiki.isPlayable(page)) return false;
-  if (verify && !deriveTags(page.categories, page.extract).includes(theme)) {
-    themedRejects.add(id);
-    return false;
-  }
-  pendingIds.add(id);
-  themedBuckets[rarityFromViews(monthlyViews)].push({ page, monthlyViews });
-  return true;
-}
-
-async function stockThemedBuckets(theme: Tag, targets: Record<Rarity, number>): Promise<void> {
-  if (themedTag !== theme) {
-    clearThemed();
-    themedTag = theme;
-  }
-  const total = () => RARITIES.reduce((s, r) => s + themedBuckets[r].length, 0);
-  const rareShort = () =>
-    themedBuckets.rare.length < targets.rare || themedBuckets.mythic.length < targets.mythic;
-  const need = targets.common + targets.uncommon + targets.rare + targets.mythic;
-
-  // Relevance sort: page 0 is where the theme's flagship (rare/mythic) articles
-  // sit; a random offset for the rest keeps successive builds varied. A themed
-  // build costs about the same handful of requests as a random one.
-  const sweep = async (query: string, verify: boolean) => {
-    const roll = 20 + Math.floor(Math.random() * 8) * 20; // 20..160
-    for (let i = 0; i < 6; i++) {
-      if (total() >= need && !rareShort()) break;
-      const offset = i === 0 ? 0 : roll + (i - 1) * 20;
-      const pages = await wiki.searchEnriched(query, 20, 'relevance', offset);
-      if (pages.length === 0) break;
-      let added = 0;
-      for (const p of pages) {
-        if (stashThemed(p, wiki.monthlyFromViews60(p.views60 ?? 0), theme, verify)) added++;
-      }
-      if (added === 0 && i >= 2) break;
-    }
-  };
-
-  // infobox-templated articles first (authoritative); keyword search backs it up
-  await sweep(THEMES[theme].infobox, false);
-  if (total() < need) await sweep(THEMES[theme].search, true);
-}
-
-/**
- * Build one complete 7-card pack — random by default, or `theme`-locked. Stock
- * the candidate pool from the right source, then `assembleFrom` does the rest.
- */
+/** Build one complete 7-card pack — random by default, or `theme`-locked. */
 export function buildPack(opts: { quick?: boolean; theme?: Tag } = {}): Promise<Card[]> {
   return withLock(async () => {
-    const targets = opts.quick ? QUICK_TARGET : TARGET;
-    if (opts.theme) {
-      await stockThemedBuckets(opts.theme, targets);
-      return assembleFrom(themedBuckets, { persist: false, forceTag: opts.theme });
-    }
     restoreCandidates();
-    await stockBuckets(targets);
-    return assembleFrom(buckets, { persist: true });
+
+    if (opts.theme) {
+      const s = themeState(opts.theme);
+      await stockThemed(opts.theme, THEMED_BUDGET);
+      if (countAll(s.buckets) < PACK_SIZE) {
+        throw new Error(
+          `Not enough ${THEMES[opts.theme].label} articles to fill a pack — retrying shortly.`
+        );
+      }
+      const cards = await assembleFrom(s.buckets, opts.theme);
+      persistThemed();
+      return cards;
+    }
+
+    await fillRandom(opts.quick ? QUICK_BUDGET : BUDGET);
+    if (countAll(buckets) < PACK_SIZE) {
+      throw new Error('Not enough Wikipedia articles to fill a pack — retrying shortly.');
+    }
+    const cards = await assembleFrom(buckets);
+    persistCandidates();
+    return cards;
   });
 }
 
 /**
- * Idle-time work: stock candidates past what one pack needs so later builds do
- * little or no sourcing. Bounded per call (adds a few per rarity) so it never
- * blocks a waiting `buildPack` for long — the queue calls it repeatedly.
+ * Idle-time top-up of the random pool, past what one pack needs, so later builds
+ * do no sourcing at all. Bounded per call — the queue calls it repeatedly.
  */
 export function warmBuckets(): Promise<void> {
   return withLock(async () => {
     restoreCandidates();
-    const step: Record<Rarity, number> = {
-      common: Math.min(buckets.common.length + 4, WARM_TARGET.common),
-      uncommon: Math.min(buckets.uncommon.length + 3, WARM_TARGET.uncommon),
-      rare: Math.min(buckets.rare.length + 2, WARM_TARGET.rare),
-      mythic: Math.min(buckets.mythic.length + 2, WARM_TARGET.mythic)
-    };
-    if (RARITIES.every((r) => buckets[r].length >= step[r])) return;
-    await stockBuckets(step, 3);
+    if (RARITIES.every((r) => buckets[r].length >= FILL[r])) return;
+    await fillRandom(2, true);
     persistCandidates();
   });
 }
 
-/** True once every bucket has enough for a pack without any sourcing. */
+/** Idle-time top-up of one theme's pool. */
+export function warmTheme(theme: Tag): Promise<void> {
+  return withLock(async () => {
+    restoreCandidates();
+    const s = themeState(theme);
+    if (bandNeed(s) === null) return;
+    await stockThemed(theme, 1);
+    persistThemed();
+  });
+}
+
+/** True once the random pool needs no sourcing for the next several packs. */
 export function bucketsWarm(): boolean {
-  return RARITIES.every((r) => buckets[r].length >= TARGET[r]);
+  return RARITIES.every((r) => buckets[r].length >= FILL[r]);
+}
+
+/** True once `theme`'s pool needs no sourcing for the next several packs. */
+export function themeWarm(theme: Tag): boolean {
+  const s = themeState(theme);
+  return bandNeed(s) === null && countAll(s.buckets) >= THEMED_MIN;
 }
 
 /** Test hook — reset all session state. */
@@ -459,14 +605,13 @@ export function _resetSession(): void {
   for (const r of RARITIES) {
     buckets[r] = [];
     topByRarity[r] = [];
-    themedBuckets[r] = [];
   }
+  themed.clear();
   usedIds.clear();
   pendingIds.clear();
   topSeen.clear();
   fetchedMonths.clear();
-  themedRejects.clear();
-  themedTag = null;
+  linkPool = [];
   restored = false;
   chain = Promise.resolve();
 }
