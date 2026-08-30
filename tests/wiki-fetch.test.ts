@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { linkCount, linksOf, searchEnriched, _setMinGap, _resetBreaker, setFetchMode } from '../src/lib/wiki';
+import { linkCount, linksOf, _setMinGap, _resetBreaker, setFetchMode } from '../src/lib/wiki';
 
 _setMinGap(0);
 
@@ -30,41 +30,6 @@ describe('linkCount', () => {
       )
     );
     expect(await linkCount('Whatever')).toBe(2);
-  });
-});
-
-describe('searchEnriched', () => {
-  const capture = () => {
-    const f = vi.fn(async (_url: RequestInfo | URL) => json({ query: { pages: [] } }));
-    vi.stubGlobal('fetch', f);
-    return f;
-  };
-
-  it('builds a random generator=search query', async () => {
-    const f = capture();
-    await searchEnriched('film OR movie', 20);
-    const url = String(f.mock.calls[0][0]);
-    expect(url).toContain('generator=search');
-    expect(url).toContain('gsrnamespace=0');
-    expect(url).toContain('gsrsort=random');
-    expect(url).toContain('gsrlimit=20');
-    expect(url).toContain('gsrsearch=film+OR+movie');
-    expect(url).not.toContain('gsroffset');
-  });
-
-  it('supports a paginated relevance sort', async () => {
-    const f = capture();
-    await searchEnriched('cancer', 10, 'relevance', 20);
-    const url = String(f.mock.calls[0][0]);
-    expect(url).toContain('gsrsort=relevance');
-    expect(url).toContain('gsrlimit=10');
-    expect(url).toContain('gsroffset=20');
-  });
-
-  it('short-circuits an empty query', async () => {
-    const f = capture();
-    expect(await searchEnriched('   ')).toEqual([]);
-    expect(f).not.toHaveBeenCalled();
   });
 });
 

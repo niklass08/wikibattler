@@ -48,12 +48,10 @@ Key pieces:
   A shared lock serialises stocking; assembly is synchronous so it cannot race.
 - `src/lib/packQueue.ts` — the **background stocker**. Packs are not pre-built:
   it runs for the life of the session (whatever view is showing) keeping a *pool
-  of cards* stocked for random and for every theme the player owns packs for,
-  and `take()` → `draw.assemblePack()` builds the pack **synchronously from that
-  pool**, with no request. Priority per tick: the active type (urgently if its
-  pool can't cover a pack), then owned themes, then random; idles when stocked.
-  Re-targets on `activePack` / `ownedPacks` changes. Pool short + API error ⇒
-  PackOpener error + Retry.
+  of cards* stocked, and `take()` → `draw.assemblePack()` builds the pack
+  **synchronously from that pool**, with no request. Urgent ticks while the pool
+  can't cover a pack, easing off once it can and idling when full. Pool short +
+  API error ⇒ PackOpener error + Retry.
 - `src/lib/collection.ts` — v2 store; entries carry the full `Card` (no pool to
   look them up in). `computeProgress` is counts only (no completion %).
 - **Rarity thresholds** unchanged in `src/lib/rarity.ts`: `uncommon 10k / rare 150k
@@ -475,41 +473,22 @@ Export/import collection as JSON — nice, cheap, do it if time allows.
 
 ---
 
-## 11. Economy — disenchant & thematic packs (added 2026-08-30)
+## 11. Economy — disenchanting (added 2026-08-30)
 
-- **Disenchant → knowledge → consumable thematic packs.** `src/lib/economy.ts` is
-  the tunable config (disenchant value per rarity + foil/negated bonus,
-  `THEMATIC_PACK_PRICE`); `src/lib/shop.ts` holds `knowledge` / `ownedPacks` /
-  `activePack` (mirroring `createPacksOpened`); `collection.disenchant(id, n)` /
+- **Disenchant → knowledge.** `src/lib/economy.ts` is the tunable config
+  (disenchant value per rarity + foil/negated bonus, `THEMATIC_PACK_PRICE`);
+  `src/lib/shop.ts` holds the `knowledge` store; `collection.disenchant(id, n)` /
   `disenchantDuplicates()` mutate the collection and return the knowledge earned
-  (favourites protected, last copy allowed).
-- **`src/lib/themes.ts`** — per-`Tag` `{ label, icon, color, search }`. Colour is
-  the single source of truth, applied via inline `style:--accent` (tokens.css
-  untouched).
-- **Thematic pack sourcing** (`draw.ts`): `buildPack({ theme })` draws from a
-  **per-theme pool** (`themed: Map<Tag, ThemeState>`, `usedIds` shared) stocked
-  by `wiki.searchEnriched`. Primary query is `THEMES[t].infobox`, a
-  `hastemplate:"Infobox …"` clause — an authoritative topic signal, cleaner than
-  keyword matching and it works where Wikidata SPARQL times out on
-  people/occupations; `THEMES[t].search` backs it up when a theme has no usable
-  infobox (that path keeps the `deriveTags` gate, since it matches prose).
-
-  **Offset selects the rarity band.** A relevance-sorted search is ordered by
-  prominence — probed live: `Infobox film` offset 0 → rare/mythic, ~100–400 →
-  uncommon, 1200+ → common. `bandOffset()` therefore rotates through three
-  fractions of a per-theme learned `span` (halved whenever a page returns empty,
-  so small themes page shallower). Three requests stock a full spread of ~40
-  candidates ⇒ several packs. Cursors advance, so no page is ever re-fetched.
-  Pools persist (`wikitcg:themed-candidates:v1`). The theme tag is forced onto
-  every card (`assembleFrom` `forceTag`).
-- **`packQueue`** is the background stocker (see §0): it subscribes to
-  `activePack` + `ownedPacks` and keeps a card pool stocked per pack type,
-  prioritising the selected one. No packs are pre-built — `take()` assembles
-  from stock synchronously.
-- **`generator=search` verified** to return `pageviews` + `categories` — no
-  `enrichTitles` fallback needed. Niche themes (disease/scientists/vehicles/plants)
-  are noisier: the guaranteed rare can degrade to a promoted uncommon via the
-  existing `FALLBACK`. Documented in Help.
+  (favourites protected, last copy allowed behind a confirm).
+- **Thematic packs are NOT built.** They were prototyped and removed: the Shop is
+  a *coming soon* screen previewing the planned themes, and knowledge has no sink
+  yet. It still accrues and persists so nothing is lost when the shop opens.
+  `src/lib/themes.ts` is now presentation-only (label, icon, colour).
+- If they are revived, the finding worth keeping is that a relevance-sorted
+  `hastemplate:"Infobox …"` search bands by *offset* (page 0 → rare/mythic,
+  ~100–400 → uncommon, 1200+ → common), and that CirrusSearch does **not** union
+  `hastemplate:A OR hastemplate:B` — one template per request. See git history
+  for `fa41c4e` / `e545bf1`.
 
 ## 10. Arena — global PvP ladder (added 2026-08-30, after §9)
 

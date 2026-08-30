@@ -243,20 +243,6 @@ describe('buildPack (live assembly)', () => {
     expect(overlap).toHaveLength(0);
   }, 30_000);
 
-  it('builds a themed pack of on-theme cards, last card rare-or-better', async () => {
-    const pack = await buildPack({ theme: 'cinema' });
-    const order = ['common', 'uncommon', 'rare', 'mythic'];
-    expect(pack).toHaveLength(7);
-    expect(new Set(pack.map((c) => c.id)).size).toBe(7);
-    for (const c of pack) expect(c.tags).toContain('cinema');
-    expect(order.indexOf(pack[6].rarity)).toBeGreaterThanOrEqual(order.indexOf('rare'));
-  }, 30_000);
-
-  it('a themed pack shares no article with a random pack (shared usedIds)', async () => {
-    const rnd = await buildPack();
-    const themed = await buildPack({ theme: 'cinema' });
-    expect(rnd.filter((c) => themed.some((d) => d.id === c.id))).toHaveLength(0);
-  }, 30_000);
 });
 
 // The pool is the whole point of the sourcing rework: one batched pass stocks
@@ -269,42 +255,11 @@ describe('buildPack (candidate pooling)', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('a themed pack sources once, then later packs of that theme are free', async () => {
-    await buildPack({ theme: 'cinema' });
-    // three banded search offsets, not the old 12-request sweep
-    const firstSearches = fetchMock.mock.calls.filter((c) =>
-      String(c[0]).includes('generator=search')
-    );
-    expect(firstSearches.length).toBeLessThanOrEqual(3);
-
-    fetchMock.mockClear();
-    const second = await buildPack({ theme: 'cinema' });
-    const third = await buildPack({ theme: 'cinema' });
-    expect(second).toHaveLength(7);
-    expect(third).toHaveLength(7);
-    // drawn straight from the pool — only per-card link lookups may fire
-    const searches = fetchMock.mock.calls.filter((c) => String(c[0]).includes('generator=search'));
-    expect(searches).toHaveLength(0);
-  }, 30_000);
-
-  it('each theme keeps its own pool — switching back and forth re-sources nothing', async () => {
-    await buildPack({ theme: 'cinema' });
-    await buildPack({ theme: 'music' });
-    fetchMock.mockClear();
-
-    // back to cinema, then music again: both pools are still stocked
-    await buildPack({ theme: 'cinema' });
-    await buildPack({ theme: 'music' });
-    const searches = fetchMock.mock.calls.filter((c) => String(c[0]).includes('generator=search'));
-    expect(searches).toHaveLength(0);
-  }, 30_000);
-
-  it('consecutive random packs reuse the pool instead of re-sourcing', async () => {
+  it('consecutive packs reuse the pool instead of re-sourcing', async () => {
     await buildPack();
     fetchMock.mockClear();
     const b = await buildPack();
     expect(b).toHaveLength(7);
-    // no candidate sourcing — random/enrich/parse-links only for the rare stat
     const sourcing = fetchMock.mock.calls.filter((c) => {
       const u = String(c[0]);
       return u.includes('generator=random') || u.includes('/metrics/pageviews/top/');
@@ -348,7 +303,7 @@ describe('assemble-on-demand', () => {
   });
 
   it('once stocked, assembling a pack costs zero requests', async () => {
-    for (let i = 0; i < 8 && !poolReady(); i++) await stockStep(null);
+    for (let i = 0; i < 8 && !poolReady(); i++) await stockStep();
     expect(poolReady()).toBe(true);
 
     fetchMock.mockClear();
@@ -357,23 +312,12 @@ describe('assemble-on-demand', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   }, 30_000);
 
-  it('the same holds for a theme — seven religion cards in stock open instantly', async () => {
-    for (let i = 0; i < 8 && !poolReady('religion'); i++) await stockStep('religion');
-    expect(poolReady('religion')).toBe(true);
-
-    fetchMock.mockClear();
-    const pack = assemblePack('religion');
-    expect(pack).toHaveLength(7);
-    for (const c of pack!) expect(c.tags).toContain('religion');
-    expect(fetchMock).not.toHaveBeenCalled();
-  }, 30_000);
-
   it('the stocker resolves exact link counts once the pool is stocked', async () => {
-    for (let i = 0; i < 8 && !poolReady(); i++) await stockStep(null);
+    for (let i = 0; i < 8 && !poolReady(); i++) await stockStep();
     // keep stepping — with the pool full, the only work left is link counts;
     // step until there is none, so every pooled rare/mythic is resolved
     for (let i = 0; i < 40; i++) {
-      if ((await stockStep(null)) === 0) break;
+      if ((await stockStep()) === 0) break;
     }
 
     const parses = fetchMock.mock.calls.filter((c) => String(c[0]).includes('action=parse'));

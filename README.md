@@ -12,9 +12,9 @@ A trading-card game built on Wikipedia. Every article is a card:
 
 Two screens: **open packs** (7 cards — modally 4 common / 2 uncommon / 1 rare, with
 an upgrade roll on every card and a guaranteed rare-or-better in the last slot)
-and **view your collection**. **Disenchant** unwanted cards for **knowledge**, spend
-it in the **Shop** on consumable **thematic packs** (one per theme, colour-coded,
-all seven cards on-theme). Plus **Battle** (a deterministic auto-battler vs a
+and **view your collection**. **Disenchant** unwanted cards for **knowledge**
+(there is nothing to spend it on yet — the Shop is a *coming soon* preview of the
+thematic packs it is meant for). Plus **Battle** (a deterministic auto-battler vs a
 practice dummy) and the **Arena** (an opt-in global PvP ladder — see below). The
 core game is fully client-side — no backend, no API keys. Your collection lives in
 `localStorage`.
@@ -49,15 +49,12 @@ articles with nothing usable get a title-tinted typographic card.
 
 Packs are **not** pre-built. `src/lib/packQueue.ts` runs a background stocker for
 the whole life of the session — whatever view the player is on — keeping a
-**pool of cards** topped up for the random pack and for every theme the player
-holds packs for. When the player clicks, `assemblePack()` builds the pack out of
-that pool **synchronously, with no request at all**: if seven religion cards are
-already in stock, the religion pack opens instantly.
+**pool of cards** topped up. When the player clicks, `assemblePack()` builds the
+pack out of that pool **synchronously, with no request at all**: if there are
+already seven cards in stock, the pack opens instantly.
 
-The stocker re-targets on every pack-type switch and every purchase. Its
-priority each tick is: the type the player is about to open (aggressively, if
-its pool can't cover a pack yet), then the themes they own, then random — so
-switching back and forth is instant too. It idles once everything is stocked.
+The stocker works urgently (150 ms ticks, impatient fetch profile) while the pool
+can't cover a pack, eases off once it can, and idles at 20 s once it is full.
 
 Because assembly must not touch the network, exact link counts (one `parse`
 call per rare/mythic card) are resolved **by the stocker in the background**;
@@ -73,8 +70,7 @@ Wikimedia rate-limits anonymous browser clients hard, so sourcing is batched
   budget. Every pass has a hard request `BUDGET`;
 - the uncommon link harvest is **pooled**: one `parse` of a popular article
   yields hundreds of mid-popularity titles, enriched 20 at a time;
-- pools persist (`wikitcg:candidates:v2`, `wikitcg:themed-candidates:v1`), so a
-  reload opens instantly too;
+- the pool persists (`wikitcg:candidates:v2`), so a reload opens instantly too;
 - **requests are serial** — `wiki.ts` runs 1 in flight with a ~500 ms gap
   (Wikimedia's ask for anon clients);
 - **exact link counts only for rare/mythic** (one `parse` each); the rest
@@ -88,38 +84,21 @@ shows an error + retry.
 
 Rarity/stat thresholds live in `src/lib/rarity.ts`.
 
-## Economy — disenchant & thematic packs
+## Economy — disenchanting
 
 - **`src/lib/economy.ts`** — the one config file: `DISENCHANT_VALUE` per rarity,
-  foil/negated bonuses, `THEMATIC_PACK_PRICE`. Tuned generous (one disenchanted
-  uncommon ≈ one themed pack); every number is a one-line edit.
-- **`src/lib/shop.ts`** — the `knowledge` / `ownedPacks` / `activePack` stores
-  (`wikitcg:knowledge:v1`, `:owned-packs:v1`, `:active-pack:v1`) + `buyPacks()`.
-- **`src/lib/themes.ts`** — per-theme colour + icon + the `gsrsearch` query that
-  sources on-theme candidates.
-- **Thematic pack building** (`draw.ts`): themed sourcing goes by
-  **infobox template** — `THEMES[t].infobox` is a `hastemplate:"Infobox film"`
-  query, an authoritative topic signal with no keyword noise (a keyword `search`
-  backs it up when a theme has no usable infobox).
+  foil/negated bonuses, `THEMATIC_PACK_PRICE`. Every number is a one-line edit.
+- **`collection.disenchant(id, n)` / `disenchantDuplicates()`** turn cards into
+  **knowledge** and return the amount earned; favourites are protected and the
+  last copy needs a confirm. Buttons live in `CardDetail` and the Collection
+  header.
+- **`src/lib/shop.ts`** — the `knowledge` store (`wikitcg:knowledge:v1`).
 
-  A relevance-sorted search is ordered by prominence, so the **offset selects a
-  rarity band** — verified live against en.wikipedia:
-
-  | `hastemplate:"Infobox film"` | band |
-  |---|---|
-  | offset 0 | rare / mythic |
-  | offset ~100–400 | uncommon |
-  | offset 1200+ | common |
-
-  So three requests at three offsets stock a full rarity spread. **Each theme
-  keeps its own pool and its own cursors**, so holding several themed packs at
-  once costs nothing extra and switching between them re-sources nothing. Cursors
-  advance, so a pool never re-fetches a page it already has. `span` is learned
-  per theme (halved when a page comes back empty) so small themes page shallower.
-
-  The theme tag is forced onto every card and the same `RarityPools` goes to the
-  unchanged `generatePack`. The background stocker keeps every owned theme's pool
-  topped up, prioritising whichever one the player has selected.
+**Thematic packs are not built.** The Shop is a *coming soon* screen: it shows
+the knowledge balance and previews the themes that are planned, but nothing is
+purchasable. Knowledge still accrues and persists, so a player disenchanting now
+keeps the balance for when the shop opens. `src/lib/themes.ts` keeps each theme's
+label, icon and colour for that preview.
 
 ## Deploy
 

@@ -13,7 +13,6 @@
     dupCount = 0,
     isNew = false,
     favourite = false,
-    accent,
     onclick,
     onResolveImage
   }: {
@@ -23,8 +22,6 @@
     isNew?: boolean;
     /** Show the star mark — the card is in the player's favourites. */
     favourite?: boolean;
-    /** Theme colour for the face-down back (thematic packs). */
-    accent?: string;
     onclick?: () => void;
     /** Called with a backup art URL found for a card that had none. */
     onResolveImage?: (url: string) => void;
@@ -142,7 +139,7 @@
       </div>
 
       <div class="face back">
-        <CardBack {accent} />
+        <CardBack />
       </div>
     </div>
   </button>
