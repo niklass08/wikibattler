@@ -270,9 +270,37 @@
   <!-- ─── opponents ─────────────────────────────────────────────────── -->
   <h2>Opponents</h2>
   <p>
-    For now there's one: the <b>{GOLDFISH.name}</b> — {GOLDFISH.maxHp.toLocaleString()} HP,
+    In <b>Battle</b> there's the <b>{GOLDFISH.name}</b> — {GOLDFISH.maxHp.toLocaleString()} HP,
     {GOLDFISH.attack} attack. It barely fights back; it's a practice dummy to watch the pool, the
-    roles and the round effects do their thing. More opponents are coming.
+    roles and the round effects do their thing.
+  </p>
+
+  <!-- ─── arena ─────────────────────────────────────────────────────── -->
+  <h2>Arena <span class="beta mono">beta</span></h2>
+  <p>
+    The <b>Arena</b> is a global ladder. Publish your current battle team as a
+    <strong>defence</strong>, then attack anyone else's. Both teams bring their full kit —
+    field effects, round effects, mythic signatures, regen, reflect — and trade blows until one
+    HP pool empties or the round cap is hit.
+  </p>
+  <ul class="defs">
+    <li>
+      <b>Attacker strikes first.</b> If your opening swing empties the defender's pool, they
+      never answer — so attacking is favoured, which keeps the ladder moving.
+    </li>
+    <li>
+      <b>Elo rating.</b> Everyone starts at 1200. A win takes rating from your opponent, a loss
+      gives it up, a draw is neutral. A new rating settles fast over its first several battles.
+    </li>
+    <li>
+      <b>One rated result per opponent.</b> Re-attacking someone you've already fought still
+      shows the outcome, but no longer moves either rating — so you can't farm one opponent.
+    </li>
+  </ul>
+  <p class="fine">
+    Battles are resolved on your own device and the result is self-reported — the maths is
+    deterministic, so any battle can be replayed from the two team codes, but this is a
+    friendly ladder, not a tamper-proof one.
   </p>
 
   <div class="cta">

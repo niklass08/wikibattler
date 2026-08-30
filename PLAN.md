@@ -452,10 +452,49 @@ Export/import collection as JSON — nice, cheap, do it if time allows.
 
 ---
 
+## 10. Arena — global PvP ladder (added 2026-08-30, after §9)
+
+An opt-in async ladder: publish a **defending team**, attack anyone else's, ranked
+by Elo. Lives in its own lazily-loaded chunk so the core game is untouched.
+
+- **Battles are 100% client-side.** `simulate(a, b)` is now **symmetric** — two
+  full `TeamStats` trade blows, side A (the attacker) first. The single-player
+  Goldfish fight runs through `simulateVsDummy`, which wraps the flat stat block
+  as a one-sided team; `tests/battle.snapshot.test.ts` locks that path
+  byte-for-byte against the pre-symmetric behaviour.
+- **Attacker first-strike is intentional** — if A's swing empties B, B never
+  answers. So `simulate(A,B)` is not the inverse of `simulate(B,A)`. It rewards
+  attacking, which keeps the ladder active.
+- **`DefenceCode`** (`src/lib/battle/defence.ts`): `"1." + base64url(deflate(json))`
+  of `{id,title,str,def,rarity,role,signature,tags[]}` per card. `role` is shipped
+  so the extract can be dropped; `classifyCard` gained an optional `battleRole`
+  override that only the decoder sets. `decodeDefence` never throws.
+- **Elo** (`src/lib/arena/elo.ts`): start 1200, K 64 while `games < 10` then 32,
+  every step clamped to ±48 (must match the rules bound). Only the **first**
+  resolved attack of an (attacker → defender) pair is rated. Board shows
+  `games >= 10` only.
+- **Store: Firebase Firestore + Anonymous Auth, no server code.** `defences/{uid}`,
+  `defences/{uid}/attacks/{attackerUid}`, `profiles/{uid}`. The write path
+  (`src/lib/arena/ladder.ts`) runs a transaction so the rules' `getAfter` check on
+  the attack doc holds.
+- **The Firebase web config is committed and public by design** (`src/lib/firebase.ts`)
+  — it identifies the project, it is not a secret; `firestore.rules` gates every
+  write. This is the one documented exception to §9's no-secrets rule. Rules can't
+  do the Elo arithmetic, so they bound magnitude and require a matching rated
+  attack doc for cross-user writes; a determined cheater can still script bounded
+  writes — accepted for a friendly ladder.
+- **Setup** (maintainer, once): see README "Arena". `firebase deploy --only
+  firestore`, enable Anonymous auth, authorize the Pages origin, paste the web
+  config. Rules tests run against the local emulator, never in CI.
+- **Free-tier discipline:** every list `limit(25)` + cursor; ladder/browse pages
+  cached 5 min in `localStorage` (`src/lib/arena/cache.ts`); 60-day staleness
+  filter hides abandoned per-device identities.
+
 ## 9. Constraints & gotchas
 
 - **No backend, no secrets, no build-time env.** All card data is fetched live at
-  runtime; nothing is bundled or committed.
+  runtime; nothing is bundled or committed. (The Arena's Firebase *web config* is
+  committed and is not a secret — see §10.)
 - **Image licensing:** card art is Wikimedia-hosted. `wiki.ts` sets
   `pilicense=any`, so fair-use images (album/film/book covers, logos, box art) are
   included — most of the interesting art. Fine for a personal project; the card

@@ -21,6 +21,9 @@
         <button class:active={$view === 'battle'} onclick={() => view.set('battle')}>
           Battle <span class="tag mono">beta</span>
         </button>
+        <button class:active={$view === 'arena'} onclick={() => view.set('arena')}>
+          Arena <span class="tag mono">beta</span>
+        </button>
       {/if}
       <button class="help" class:active={$view === 'help'} onclick={() => view.set('help')}>
         Help

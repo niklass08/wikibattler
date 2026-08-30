@@ -1,0 +1,66 @@
+rules_version = '2';
+
+// WikiTCG Arena — a friendly async PvP ladder. Battles resolve on the client
+// (deterministic simulation); Firestore only stores serialized teams and moves
+// Elo ratings. These rules stop the trivial griefs — they cannot verify the Elo
+// arithmetic (no pow/log in rules), so they bound every rating step and require
+// a matching rated attack doc for cross-user writes. A determined cheater can
+// still script bounded writes; that is an accepted trade for having no backend.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function changedKeys(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+    function ratedAttackExists(defUid, attackerUid) {
+      return getAfter(
+        /databases/$(database)/documents/defences/$(defUid)/attacks/$(attackerUid)
+      ).data.rated == true;
+    }
+
+    // A published defending team. Only its owner ever writes it.
+    match /defences/{uid} {
+      allow read: if true;
+      allow create, update, delete: if isOwner(uid);
+
+      // One record per (attacker -> defender) pair; doc id is the attacker's uid.
+      match /attacks/{attackerUid} {
+        allow read: if true;
+        allow write: if isOwner(attackerUid)
+                     && request.resource.data.attackerUid == attackerUid;
+      }
+    }
+
+    // Handle + Elo rating + W/L/D. Created at 1200/0; then either the owner
+    // renames it, or a rated result nudges rating/games (owner on their own doc,
+    // or the attacker on the defender they just fought).
+    match /profiles/{uid} {
+      allow read: if true;
+
+      allow create: if isOwner(uid)
+                    && request.resource.data.rating == 1200
+                    && request.resource.data.games == 0;
+
+      // (a) the owner: rename and/or reconcile the board-visibility flags
+      allow update: if isOwner(uid)
+                    && changedKeys(['handle', 'ranked', 'provisional', 'updatedAt']);
+
+      // (b) a rated result: exactly one game added, rating moves within +/-48.
+      //   - the attacker updates their OWN doc, and must point `lastRatedDef` at
+      //     a defender they just filed a rated attack against (so the same
+      //     defender can't be farmed — a second attack of a pair is never rated);
+      //   - or the attacker updates the DEFENDER they just fought.
+      allow update: if
+           changedKeys(['rating','games','wins','losses','draws','provisional','ranked','peakRating','lastRatedDef','updatedAt'])
+        && request.resource.data.games == resource.data.games + 1
+        && math.abs(request.resource.data.rating - resource.data.rating) <= 48
+        && (
+             (isOwner(uid) && ratedAttackExists(request.resource.data.lastRatedDef, request.auth.uid))
+             || ratedAttackExists(uid, request.auth.uid)
+           );
+    }
+  }
+}
