@@ -38,6 +38,8 @@ export const status = writable<QueueStatus>({
 
 let queue: Card[][] = [];
 let running = false;
+/** a refill was requested while one was already running — run again when it ends */
+let wantRefill = false;
 let started = false;
 let errorAt = 0;
 /** A player is waiting on an empty queue — build fast, be impatient with the API. */
@@ -85,9 +87,15 @@ function restore(): void {
 }
 
 async function refill(force = false): Promise<void> {
-  if (running || !started) return;
+  if (!started) return;
+  if (running) {
+    // a switch / buy / take came in mid-build — pick it up when this run ends
+    wantRefill = true;
+    return;
+  }
   if (!force && errorAt && Date.now() - errorAt < ERROR_COOLDOWN_MS) return;
   running = true;
+  wantRefill = false;
   const gen = switchGen;
   const theme = activeTag === 'random' ? undefined : activeTag;
   setFetchMode(urgent ? 'fg' : 'bg');
@@ -96,7 +104,7 @@ async function refill(force = false): Promise<void> {
     while (started && gen === switchGen && queue.length < target()) {
       const quick = urgent && queue.length === 0;
       const pack = await buildPack({ quick, theme });
-      if (gen !== switchGen) return; // a switch happened mid-build — discard it
+      if (gen !== switchGen) break; // a switch happened mid-build — discard it
       queue.push(pack);
       errorAt = 0;
       persist();
@@ -106,22 +114,30 @@ async function refill(force = false): Promise<void> {
       }
       status.update((s) => (s.switching ? { ...s, switching: null } : s));
     }
-    if (gen !== switchGen) return;
-    status.update((s) => ({ ...s, warming: false, error: null, switching: null }));
-    // random queue full — pre-stock candidate buckets so the next builds are fast
-    if (started && activeTag === 'random' && !bucketsWarm()) void warmBuckets().catch(() => {});
+    if (gen === switchGen) {
+      status.update((s) => ({ ...s, warming: false, error: null, switching: null }));
+      // random queue full — pre-stock candidate buckets so the next builds are fast
+      if (started && activeTag === 'random' && !bucketsWarm()) void warmBuckets().catch(() => {});
+    }
   } catch (err) {
-    if (gen !== switchGen) return;
-    errorAt = Date.now();
-    status.update((s) => ({
-      ...s,
-      warming: false,
-      switching: null,
-      error: err instanceof Error ? err.message : 'Could not reach Wikipedia.'
-    }));
+    if (gen === switchGen) {
+      errorAt = Date.now();
+      status.update((s) => ({
+        ...s,
+        warming: false,
+        switching: null,
+        error: err instanceof Error ? err.message : 'Could not reach Wikipedia.'
+      }));
+    }
   } finally {
     setFetchMode('bg');
     running = false;
+    // the type changed under us, or someone asked again while we were busy
+    const stale = gen !== switchGen;
+    if (started && (wantRefill || stale)) {
+      wantRefill = false;
+      void refill(stale); // force past the error cooldown when the type changed
+    }
   }
 }
 
