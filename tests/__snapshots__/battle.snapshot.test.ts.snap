@@ -1,0 +1,4090 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`simulate — pre-refactor single-player snapshots > attack ramp 1`] = `
+{
+  "damageDealt": 600,
+  "damageTaken": 0,
+  "outcome": "win",
+  "rounds": [
+    {
+      "enemyHp": 400,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "📈 Attack ramp — team attack now +50%.",
+        },
+        {
+          "kind": "you",
+          "text": "Your team hits for 150. Dummy 550 → 400.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy does nothing in particular.",
+        },
+      ],
+      "n": 1,
+      "playerHp": 9000,
+    },
+    {
+      "enemyHp": 200,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "📈 Attack ramp — team attack now +100%.",
+        },
+        {
+          "kind": "you",
+          "text": "Your team hits for 200. Dummy 400 → 200.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy does nothing in particular.",
+        },
+      ],
+      "n": 2,
+      "playerHp": 9000,
+    },
+    {
+      "enemyHp": 0,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "📈 Attack ramp — team attack now +150%.",
+        },
+        {
+          "kind": "you",
+          "text": "Your team hits for 250. Dummy 200 → 0.",
+        },
+        {
+          "kind": "result",
+          "text": "Victory — the Dummy is down in 3 rounds.",
+        },
+      ],
+      "n": 3,
+      "playerHp": 9000,
+    },
+  ],
+}
+`;
+
+exports[`simulate — pre-refactor single-player snapshots > blitz doubles the early swings 1`] = `
+{
+  "damageDealt": 4300,
+  "damageTaken": 400,
+  "outcome": "draw",
+  "rounds": [
+    {
+      "enemyHp": 9800,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 10000 → 9900.",
+        },
+        {
+          "kind": "field",
+          "text": "🗡️ Blitzkrieg — a second strike for 100. Dummy 9900 → 9800.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 5000 → 4990.",
+        },
+      ],
+      "n": 1,
+      "playerHp": 4990,
+    },
+    {
+      "enemyHp": 9600,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 9800 → 9700.",
+        },
+        {
+          "kind": "field",
+          "text": "🗡️ Blitzkrieg — a second strike for 100. Dummy 9700 → 9600.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4990 → 4980.",
+        },
+      ],
+      "n": 2,
+      "playerHp": 4980,
+    },
+    {
+      "enemyHp": 9400,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 9600 → 9500.",
+        },
+        {
+          "kind": "field",
+          "text": "🗡️ Blitzkrieg — a second strike for 100. Dummy 9500 → 9400.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4980 → 4970.",
+        },
+      ],
+      "n": 3,
+      "playerHp": 4970,
+    },
+    {
+      "enemyHp": 9300,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 9400 → 9300.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4970 → 4960.",
+        },
+      ],
+      "n": 4,
+      "playerHp": 4960,
+    },
+    {
+      "enemyHp": 9200,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 9300 → 9200.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4960 → 4950.",
+        },
+      ],
+      "n": 5,
+      "playerHp": 4950,
+    },
+    {
+      "enemyHp": 9100,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 9200 → 9100.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4950 → 4940.",
+        },
+      ],
+      "n": 6,
+      "playerHp": 4940,
+    },
+    {
+      "enemyHp": 9000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 9100 → 9000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4940 → 4930.",
+        },
+      ],
+      "n": 7,
+      "playerHp": 4930,
+    },
+    {
+      "enemyHp": 8900,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 9000 → 8900.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4930 → 4920.",
+        },
+      ],
+      "n": 8,
+      "playerHp": 4920,
+    },
+    {
+      "enemyHp": 8800,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8900 → 8800.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4920 → 4910.",
+        },
+      ],
+      "n": 9,
+      "playerHp": 4910,
+    },
+    {
+      "enemyHp": 8700,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8800 → 8700.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4910 → 4900.",
+        },
+      ],
+      "n": 10,
+      "playerHp": 4900,
+    },
+    {
+      "enemyHp": 8600,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8700 → 8600.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4900 → 4890.",
+        },
+      ],
+      "n": 11,
+      "playerHp": 4890,
+    },
+    {
+      "enemyHp": 8500,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8600 → 8500.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4890 → 4880.",
+        },
+      ],
+      "n": 12,
+      "playerHp": 4880,
+    },
+    {
+      "enemyHp": 8400,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8500 → 8400.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4880 → 4870.",
+        },
+      ],
+      "n": 13,
+      "playerHp": 4870,
+    },
+    {
+      "enemyHp": 8300,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8400 → 8300.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4870 → 4860.",
+        },
+      ],
+      "n": 14,
+      "playerHp": 4860,
+    },
+    {
+      "enemyHp": 8200,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8300 → 8200.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4860 → 4850.",
+        },
+      ],
+      "n": 15,
+      "playerHp": 4850,
+    },
+    {
+      "enemyHp": 8100,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8200 → 8100.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4850 → 4840.",
+        },
+      ],
+      "n": 16,
+      "playerHp": 4840,
+    },
+    {
+      "enemyHp": 8000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8100 → 8000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4840 → 4830.",
+        },
+      ],
+      "n": 17,
+      "playerHp": 4830,
+    },
+    {
+      "enemyHp": 7900,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8000 → 7900.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4830 → 4820.",
+        },
+      ],
+      "n": 18,
+      "playerHp": 4820,
+    },
+    {
+      "enemyHp": 7800,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7900 → 7800.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4820 → 4810.",
+        },
+      ],
+      "n": 19,
+      "playerHp": 4810,
+    },
+    {
+      "enemyHp": 7700,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7800 → 7700.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4810 → 4800.",
+        },
+      ],
+      "n": 20,
+      "playerHp": 4800,
+    },
+    {
+      "enemyHp": 7600,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7700 → 7600.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4800 → 4790.",
+        },
+      ],
+      "n": 21,
+      "playerHp": 4790,
+    },
+    {
+      "enemyHp": 7500,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7600 → 7500.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4790 → 4780.",
+        },
+      ],
+      "n": 22,
+      "playerHp": 4780,
+    },
+    {
+      "enemyHp": 7400,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7500 → 7400.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4780 → 4770.",
+        },
+      ],
+      "n": 23,
+      "playerHp": 4770,
+    },
+    {
+      "enemyHp": 7300,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7400 → 7300.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4770 → 4760.",
+        },
+      ],
+      "n": 24,
+      "playerHp": 4760,
+    },
+    {
+      "enemyHp": 7200,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7300 → 7200.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4760 → 4750.",
+        },
+      ],
+      "n": 25,
+      "playerHp": 4750,
+    },
+    {
+      "enemyHp": 7100,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7200 → 7100.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4750 → 4740.",
+        },
+      ],
+      "n": 26,
+      "playerHp": 4740,
+    },
+    {
+      "enemyHp": 7000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7100 → 7000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4740 → 4730.",
+        },
+      ],
+      "n": 27,
+      "playerHp": 4730,
+    },
+    {
+      "enemyHp": 6900,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7000 → 6900.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4730 → 4720.",
+        },
+      ],
+      "n": 28,
+      "playerHp": 4720,
+    },
+    {
+      "enemyHp": 6800,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6900 → 6800.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4720 → 4710.",
+        },
+      ],
+      "n": 29,
+      "playerHp": 4710,
+    },
+    {
+      "enemyHp": 6700,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6800 → 6700.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4710 → 4700.",
+        },
+      ],
+      "n": 30,
+      "playerHp": 4700,
+    },
+    {
+      "enemyHp": 6600,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6700 → 6600.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4700 → 4690.",
+        },
+      ],
+      "n": 31,
+      "playerHp": 4690,
+    },
+    {
+      "enemyHp": 6500,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6600 → 6500.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4690 → 4680.",
+        },
+      ],
+      "n": 32,
+      "playerHp": 4680,
+    },
+    {
+      "enemyHp": 6400,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6500 → 6400.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4680 → 4670.",
+        },
+      ],
+      "n": 33,
+      "playerHp": 4670,
+    },
+    {
+      "enemyHp": 6300,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6400 → 6300.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4670 → 4660.",
+        },
+      ],
+      "n": 34,
+      "playerHp": 4660,
+    },
+    {
+      "enemyHp": 6200,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6300 → 6200.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4660 → 4650.",
+        },
+      ],
+      "n": 35,
+      "playerHp": 4650,
+    },
+    {
+      "enemyHp": 6100,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6200 → 6100.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4650 → 4640.",
+        },
+      ],
+      "n": 36,
+      "playerHp": 4640,
+    },
+    {
+      "enemyHp": 6000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6100 → 6000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4640 → 4630.",
+        },
+      ],
+      "n": 37,
+      "playerHp": 4630,
+    },
+    {
+      "enemyHp": 5900,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6000 → 5900.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4630 → 4620.",
+        },
+      ],
+      "n": 38,
+      "playerHp": 4620,
+    },
+    {
+      "enemyHp": 5800,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 5900 → 5800.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4620 → 4610.",
+        },
+      ],
+      "n": 39,
+      "playerHp": 4610,
+    },
+    {
+      "enemyHp": 5700,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 5800 → 5700.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4610 → 4600.",
+        },
+        {
+          "kind": "field",
+          "text": "The round cap runs out.",
+        },
+        {
+          "kind": "result",
+          "text": "Draw — 40 rounds and neither side broke.",
+        },
+      ],
+      "n": 40,
+      "playerHp": 4600,
+    },
+  ],
+}
+`;
+
+exports[`simulate — pre-refactor single-player snapshots > blooms and overdrives 1`] = `
+{
+  "damageDealt": 2000,
+  "damageTaken": 200,
+  "outcome": "win",
+  "rounds": [
+    {
+      "enemyHp": 1950,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 50. Dummy 2000 → 1950.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 20. Team 9000 → 8980.",
+        },
+      ],
+      "n": 1,
+      "playerHp": 8980,
+    },
+    {
+      "enemyHp": 1850,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 50. Dummy 1950 → 1900.",
+        },
+        {
+          "kind": "field",
+          "text": "🚗 Overdrive — an extra strike for 50. Dummy 1900 → 1850.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 20. Team 8980 → 8960.",
+        },
+      ],
+      "n": 2,
+      "playerHp": 8960,
+    },
+    {
+      "enemyHp": 1400,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 50. Dummy 1850 → 1800.",
+        },
+        {
+          "kind": "field",
+          "text": "🌱 Bloom — 400 damage. Dummy 1800 → 1400.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 20. Team 8960 → 8940.",
+        },
+      ],
+      "n": 3,
+      "playerHp": 8940,
+    },
+    {
+      "enemyHp": 1300,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 50. Dummy 1400 → 1350.",
+        },
+        {
+          "kind": "field",
+          "text": "🚗 Overdrive — an extra strike for 50. Dummy 1350 → 1300.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 20. Team 8940 → 8920.",
+        },
+      ],
+      "n": 4,
+      "playerHp": 8920,
+    },
+    {
+      "enemyHp": 1250,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 50. Dummy 1300 → 1250.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 20. Team 8920 → 8900.",
+        },
+      ],
+      "n": 5,
+      "playerHp": 8900,
+    },
+    {
+      "enemyHp": 750,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 50. Dummy 1250 → 1200.",
+        },
+        {
+          "kind": "field",
+          "text": "🚗 Overdrive — an extra strike for 50. Dummy 1200 → 1150.",
+        },
+        {
+          "kind": "field",
+          "text": "🌱 Bloom — 400 damage. Dummy 1150 → 750.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 20. Team 8900 → 8880.",
+        },
+      ],
+      "n": 6,
+      "playerHp": 8880,
+    },
+    {
+      "enemyHp": 700,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 50. Dummy 750 → 700.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 20. Team 8880 → 8860.",
+        },
+      ],
+      "n": 7,
+      "playerHp": 8860,
+    },
+    {
+      "enemyHp": 600,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 50. Dummy 700 → 650.",
+        },
+        {
+          "kind": "field",
+          "text": "🚗 Overdrive — an extra strike for 50. Dummy 650 → 600.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 20. Team 8860 → 8840.",
+        },
+      ],
+      "n": 8,
+      "playerHp": 8840,
+    },
+    {
+      "enemyHp": 150,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 50. Dummy 600 → 550.",
+        },
+        {
+          "kind": "field",
+          "text": "🌱 Bloom — 400 damage. Dummy 550 → 150.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 20. Team 8840 → 8820.",
+        },
+      ],
+      "n": 9,
+      "playerHp": 8820,
+    },
+    {
+      "enemyHp": 50,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 50. Dummy 150 → 100.",
+        },
+        {
+          "kind": "field",
+          "text": "🚗 Overdrive — an extra strike for 50. Dummy 100 → 50.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 20. Team 8820 → 8800.",
+        },
+      ],
+      "n": 10,
+      "playerHp": 8800,
+    },
+    {
+      "enemyHp": 0,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 50. Dummy 50 → 0.",
+        },
+        {
+          "kind": "result",
+          "text": "Victory — the Dummy is down in 11 rounds.",
+        },
+      ],
+      "n": 11,
+      "playerHp": 8800,
+    },
+  ],
+}
+`;
+
+exports[`simulate — pre-refactor single-player snapshots > combo every third swing 1`] = `
+{
+  "damageDealt": 5300,
+  "damageTaken": 400,
+  "outcome": "draw",
+  "rounds": [
+    {
+      "enemyHp": 9900,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 10000 → 9900.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 5000 → 4990.",
+        },
+      ],
+      "n": 1,
+      "playerHp": 4990,
+    },
+    {
+      "enemyHp": 9800,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 9900 → 9800.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4990 → 4980.",
+        },
+      ],
+      "n": 2,
+      "playerHp": 4980,
+    },
+    {
+      "enemyHp": 9600,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "🎮 Combo — a heavy hit for 200. Dummy 9800 → 9600.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4980 → 4970.",
+        },
+      ],
+      "n": 3,
+      "playerHp": 4970,
+    },
+    {
+      "enemyHp": 9500,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 9600 → 9500.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4970 → 4960.",
+        },
+      ],
+      "n": 4,
+      "playerHp": 4960,
+    },
+    {
+      "enemyHp": 9400,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 9500 → 9400.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4960 → 4950.",
+        },
+      ],
+      "n": 5,
+      "playerHp": 4950,
+    },
+    {
+      "enemyHp": 9200,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "🎮 Combo — a heavy hit for 200. Dummy 9400 → 9200.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4950 → 4940.",
+        },
+      ],
+      "n": 6,
+      "playerHp": 4940,
+    },
+    {
+      "enemyHp": 9100,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 9200 → 9100.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4940 → 4930.",
+        },
+      ],
+      "n": 7,
+      "playerHp": 4930,
+    },
+    {
+      "enemyHp": 9000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 9100 → 9000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4930 → 4920.",
+        },
+      ],
+      "n": 8,
+      "playerHp": 4920,
+    },
+    {
+      "enemyHp": 8800,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "🎮 Combo — a heavy hit for 200. Dummy 9000 → 8800.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4920 → 4910.",
+        },
+      ],
+      "n": 9,
+      "playerHp": 4910,
+    },
+    {
+      "enemyHp": 8700,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8800 → 8700.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4910 → 4900.",
+        },
+      ],
+      "n": 10,
+      "playerHp": 4900,
+    },
+    {
+      "enemyHp": 8600,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8700 → 8600.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4900 → 4890.",
+        },
+      ],
+      "n": 11,
+      "playerHp": 4890,
+    },
+    {
+      "enemyHp": 8400,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "🎮 Combo — a heavy hit for 200. Dummy 8600 → 8400.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4890 → 4880.",
+        },
+      ],
+      "n": 12,
+      "playerHp": 4880,
+    },
+    {
+      "enemyHp": 8300,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8400 → 8300.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4880 → 4870.",
+        },
+      ],
+      "n": 13,
+      "playerHp": 4870,
+    },
+    {
+      "enemyHp": 8200,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8300 → 8200.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4870 → 4860.",
+        },
+      ],
+      "n": 14,
+      "playerHp": 4860,
+    },
+    {
+      "enemyHp": 8000,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "🎮 Combo — a heavy hit for 200. Dummy 8200 → 8000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4860 → 4850.",
+        },
+      ],
+      "n": 15,
+      "playerHp": 4850,
+    },
+    {
+      "enemyHp": 7900,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 8000 → 7900.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4850 → 4840.",
+        },
+      ],
+      "n": 16,
+      "playerHp": 4840,
+    },
+    {
+      "enemyHp": 7800,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7900 → 7800.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4840 → 4830.",
+        },
+      ],
+      "n": 17,
+      "playerHp": 4830,
+    },
+    {
+      "enemyHp": 7600,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "🎮 Combo — a heavy hit for 200. Dummy 7800 → 7600.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4830 → 4820.",
+        },
+      ],
+      "n": 18,
+      "playerHp": 4820,
+    },
+    {
+      "enemyHp": 7500,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7600 → 7500.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4820 → 4810.",
+        },
+      ],
+      "n": 19,
+      "playerHp": 4810,
+    },
+    {
+      "enemyHp": 7400,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7500 → 7400.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4810 → 4800.",
+        },
+      ],
+      "n": 20,
+      "playerHp": 4800,
+    },
+    {
+      "enemyHp": 7200,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "🎮 Combo — a heavy hit for 200. Dummy 7400 → 7200.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4800 → 4790.",
+        },
+      ],
+      "n": 21,
+      "playerHp": 4790,
+    },
+    {
+      "enemyHp": 7100,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7200 → 7100.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4790 → 4780.",
+        },
+      ],
+      "n": 22,
+      "playerHp": 4780,
+    },
+    {
+      "enemyHp": 7000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 7100 → 7000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4780 → 4770.",
+        },
+      ],
+      "n": 23,
+      "playerHp": 4770,
+    },
+    {
+      "enemyHp": 6800,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "🎮 Combo — a heavy hit for 200. Dummy 7000 → 6800.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4770 → 4760.",
+        },
+      ],
+      "n": 24,
+      "playerHp": 4760,
+    },
+    {
+      "enemyHp": 6700,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6800 → 6700.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4760 → 4750.",
+        },
+      ],
+      "n": 25,
+      "playerHp": 4750,
+    },
+    {
+      "enemyHp": 6600,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6700 → 6600.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4750 → 4740.",
+        },
+      ],
+      "n": 26,
+      "playerHp": 4740,
+    },
+    {
+      "enemyHp": 6400,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "🎮 Combo — a heavy hit for 200. Dummy 6600 → 6400.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4740 → 4730.",
+        },
+      ],
+      "n": 27,
+      "playerHp": 4730,
+    },
+    {
+      "enemyHp": 6300,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6400 → 6300.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4730 → 4720.",
+        },
+      ],
+      "n": 28,
+      "playerHp": 4720,
+    },
+    {
+      "enemyHp": 6200,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6300 → 6200.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4720 → 4710.",
+        },
+      ],
+      "n": 29,
+      "playerHp": 4710,
+    },
+    {
+      "enemyHp": 6000,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "🎮 Combo — a heavy hit for 200. Dummy 6200 → 6000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4710 → 4700.",
+        },
+      ],
+      "n": 30,
+      "playerHp": 4700,
+    },
+    {
+      "enemyHp": 5900,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 6000 → 5900.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4700 → 4690.",
+        },
+      ],
+      "n": 31,
+      "playerHp": 4690,
+    },
+    {
+      "enemyHp": 5800,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 5900 → 5800.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4690 → 4680.",
+        },
+      ],
+      "n": 32,
+      "playerHp": 4680,
+    },
+    {
+      "enemyHp": 5600,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "🎮 Combo — a heavy hit for 200. Dummy 5800 → 5600.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4680 → 4670.",
+        },
+      ],
+      "n": 33,
+      "playerHp": 4670,
+    },
+    {
+      "enemyHp": 5500,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 5600 → 5500.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4670 → 4660.",
+        },
+      ],
+      "n": 34,
+      "playerHp": 4660,
+    },
+    {
+      "enemyHp": 5400,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 5500 → 5400.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4660 → 4650.",
+        },
+      ],
+      "n": 35,
+      "playerHp": 4650,
+    },
+    {
+      "enemyHp": 5200,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "🎮 Combo — a heavy hit for 200. Dummy 5400 → 5200.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4650 → 4640.",
+        },
+      ],
+      "n": 36,
+      "playerHp": 4640,
+    },
+    {
+      "enemyHp": 5100,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 5200 → 5100.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4640 → 4630.",
+        },
+      ],
+      "n": 37,
+      "playerHp": 4630,
+    },
+    {
+      "enemyHp": 5000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 5100 → 5000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4630 → 4620.",
+        },
+      ],
+      "n": 38,
+      "playerHp": 4620,
+    },
+    {
+      "enemyHp": 4800,
+      "lines": [
+        {
+          "kind": "field",
+          "text": "🎮 Combo — a heavy hit for 200. Dummy 5000 → 4800.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4620 → 4610.",
+        },
+      ],
+      "n": 39,
+      "playerHp": 4610,
+    },
+    {
+      "enemyHp": 4700,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 4800 → 4700.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 10. Team 4610 → 4600.",
+        },
+        {
+          "kind": "field",
+          "text": "The round cap runs out.",
+        },
+        {
+          "kind": "result",
+          "text": "Draw — 40 rounds and neither side broke.",
+        },
+      ],
+      "n": 40,
+      "playerHp": 4600,
+    },
+  ],
+}
+`;
+
+exports[`simulate — pre-refactor single-player snapshots > divine shield soaks the opener 1`] = `
+{
+  "damageDealt": 300,
+  "damageTaken": 999,
+  "outcome": "loss",
+  "rounds": [
+    {
+      "enemyHp": 900,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 1000 → 900.",
+        },
+        {
+          "kind": "field",
+          "text": "✨ Divine Shield turns the blow aside.",
+        },
+      ],
+      "n": 1,
+      "playerHp": 100,
+    },
+    {
+      "enemyHp": 800,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 900 → 800.",
+        },
+        {
+          "kind": "field",
+          "text": "✨ Divine Shield turns the blow aside.",
+        },
+      ],
+      "n": 2,
+      "playerHp": 100,
+    },
+    {
+      "enemyHp": 700,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Dummy 800 → 700.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 999. Team 100 → 0.",
+        },
+        {
+          "kind": "result",
+          "text": "Defeat — your team falls in 3 rounds.",
+        },
+      ],
+      "n": 3,
+      "playerHp": 0,
+    },
+  ],
+}
+`;
+
+exports[`simulate — pre-refactor single-player snapshots > dot ramps 1`] = `
+{
+  "damageDealt": 300,
+  "damageTaken": 0,
+  "outcome": "win",
+  "rounds": [
+    {
+      "enemyHp": 280,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "No fighter on the team — the swing is skipped.",
+        },
+        {
+          "kind": "field",
+          "text": "🦠 Contagion festers for 20. Dummy 300 → 280.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy does nothing in particular.",
+        },
+      ],
+      "n": 1,
+      "playerHp": 5000,
+    },
+    {
+      "enemyHp": 240,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "No fighter on the team — the swing is skipped.",
+        },
+        {
+          "kind": "field",
+          "text": "🦠 Contagion festers for 40. Dummy 280 → 240.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy does nothing in particular.",
+        },
+      ],
+      "n": 2,
+      "playerHp": 5000,
+    },
+    {
+      "enemyHp": 180,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "No fighter on the team — the swing is skipped.",
+        },
+        {
+          "kind": "field",
+          "text": "🦠 Contagion festers for 60. Dummy 240 → 180.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy does nothing in particular.",
+        },
+      ],
+      "n": 3,
+      "playerHp": 5000,
+    },
+    {
+      "enemyHp": 100,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "No fighter on the team — the swing is skipped.",
+        },
+        {
+          "kind": "field",
+          "text": "🦠 Contagion festers for 80. Dummy 180 → 100.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy does nothing in particular.",
+        },
+      ],
+      "n": 4,
+      "playerHp": 5000,
+    },
+    {
+      "enemyHp": 0,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "No fighter on the team — the swing is skipped.",
+        },
+        {
+          "kind": "field",
+          "text": "🦠 Contagion festers for 100. Dummy 100 → 0.",
+        },
+        {
+          "kind": "result",
+          "text": "Victory — the Dummy is down in 5 rounds.",
+        },
+      ],
+      "n": 5,
+      "playerHp": 5000,
+    },
+  ],
+}
+`;
+
+exports[`simulate — pre-refactor single-player snapshots > grind to the round cap 1`] = `
+{
+  "damageDealt": 400,
+  "damageTaken": 40,
+  "outcome": "draw",
+  "rounds": [
+    {
+      "enemyHp": 8999990,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 9000000 → 8999990.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 9000 → 8999.",
+        },
+      ],
+      "n": 1,
+      "playerHp": 8999,
+    },
+    {
+      "enemyHp": 8999980,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999990 → 8999980.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8999 → 8998.",
+        },
+      ],
+      "n": 2,
+      "playerHp": 8998,
+    },
+    {
+      "enemyHp": 8999970,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999980 → 8999970.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8998 → 8997.",
+        },
+      ],
+      "n": 3,
+      "playerHp": 8997,
+    },
+    {
+      "enemyHp": 8999960,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999970 → 8999960.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8997 → 8996.",
+        },
+      ],
+      "n": 4,
+      "playerHp": 8996,
+    },
+    {
+      "enemyHp": 8999950,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999960 → 8999950.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8996 → 8995.",
+        },
+      ],
+      "n": 5,
+      "playerHp": 8995,
+    },
+    {
+      "enemyHp": 8999940,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999950 → 8999940.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8995 → 8994.",
+        },
+      ],
+      "n": 6,
+      "playerHp": 8994,
+    },
+    {
+      "enemyHp": 8999930,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999940 → 8999930.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8994 → 8993.",
+        },
+      ],
+      "n": 7,
+      "playerHp": 8993,
+    },
+    {
+      "enemyHp": 8999920,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999930 → 8999920.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8993 → 8992.",
+        },
+      ],
+      "n": 8,
+      "playerHp": 8992,
+    },
+    {
+      "enemyHp": 8999910,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999920 → 8999910.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8992 → 8991.",
+        },
+      ],
+      "n": 9,
+      "playerHp": 8991,
+    },
+    {
+      "enemyHp": 8999900,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999910 → 8999900.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8991 → 8990.",
+        },
+      ],
+      "n": 10,
+      "playerHp": 8990,
+    },
+    {
+      "enemyHp": 8999890,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999900 → 8999890.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8990 → 8989.",
+        },
+      ],
+      "n": 11,
+      "playerHp": 8989,
+    },
+    {
+      "enemyHp": 8999880,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999890 → 8999880.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8989 → 8988.",
+        },
+      ],
+      "n": 12,
+      "playerHp": 8988,
+    },
+    {
+      "enemyHp": 8999870,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999880 → 8999870.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8988 → 8987.",
+        },
+      ],
+      "n": 13,
+      "playerHp": 8987,
+    },
+    {
+      "enemyHp": 8999860,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999870 → 8999860.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8987 → 8986.",
+        },
+      ],
+      "n": 14,
+      "playerHp": 8986,
+    },
+    {
+      "enemyHp": 8999850,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999860 → 8999850.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8986 → 8985.",
+        },
+      ],
+      "n": 15,
+      "playerHp": 8985,
+    },
+    {
+      "enemyHp": 8999840,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999850 → 8999840.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8985 → 8984.",
+        },
+      ],
+      "n": 16,
+      "playerHp": 8984,
+    },
+    {
+      "enemyHp": 8999830,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999840 → 8999830.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8984 → 8983.",
+        },
+      ],
+      "n": 17,
+      "playerHp": 8983,
+    },
+    {
+      "enemyHp": 8999820,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999830 → 8999820.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8983 → 8982.",
+        },
+      ],
+      "n": 18,
+      "playerHp": 8982,
+    },
+    {
+      "enemyHp": 8999810,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999820 → 8999810.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8982 → 8981.",
+        },
+      ],
+      "n": 19,
+      "playerHp": 8981,
+    },
+    {
+      "enemyHp": 8999800,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999810 → 8999800.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8981 → 8980.",
+        },
+      ],
+      "n": 20,
+      "playerHp": 8980,
+    },
+    {
+      "enemyHp": 8999790,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999800 → 8999790.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8980 → 8979.",
+        },
+      ],
+      "n": 21,
+      "playerHp": 8979,
+    },
+    {
+      "enemyHp": 8999780,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999790 → 8999780.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8979 → 8978.",
+        },
+      ],
+      "n": 22,
+      "playerHp": 8978,
+    },
+    {
+      "enemyHp": 8999770,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999780 → 8999770.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8978 → 8977.",
+        },
+      ],
+      "n": 23,
+      "playerHp": 8977,
+    },
+    {
+      "enemyHp": 8999760,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999770 → 8999760.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8977 → 8976.",
+        },
+      ],
+      "n": 24,
+      "playerHp": 8976,
+    },
+    {
+      "enemyHp": 8999750,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999760 → 8999750.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8976 → 8975.",
+        },
+      ],
+      "n": 25,
+      "playerHp": 8975,
+    },
+    {
+      "enemyHp": 8999740,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999750 → 8999740.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8975 → 8974.",
+        },
+      ],
+      "n": 26,
+      "playerHp": 8974,
+    },
+    {
+      "enemyHp": 8999730,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999740 → 8999730.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8974 → 8973.",
+        },
+      ],
+      "n": 27,
+      "playerHp": 8973,
+    },
+    {
+      "enemyHp": 8999720,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999730 → 8999720.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8973 → 8972.",
+        },
+      ],
+      "n": 28,
+      "playerHp": 8972,
+    },
+    {
+      "enemyHp": 8999710,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999720 → 8999710.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8972 → 8971.",
+        },
+      ],
+      "n": 29,
+      "playerHp": 8971,
+    },
+    {
+      "enemyHp": 8999700,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999710 → 8999700.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8971 → 8970.",
+        },
+      ],
+      "n": 30,
+      "playerHp": 8970,
+    },
+    {
+      "enemyHp": 8999690,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999700 → 8999690.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8970 → 8969.",
+        },
+      ],
+      "n": 31,
+      "playerHp": 8969,
+    },
+    {
+      "enemyHp": 8999680,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999690 → 8999680.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8969 → 8968.",
+        },
+      ],
+      "n": 32,
+      "playerHp": 8968,
+    },
+    {
+      "enemyHp": 8999670,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999680 → 8999670.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8968 → 8967.",
+        },
+      ],
+      "n": 33,
+      "playerHp": 8967,
+    },
+    {
+      "enemyHp": 8999660,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999670 → 8999660.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8967 → 8966.",
+        },
+      ],
+      "n": 34,
+      "playerHp": 8966,
+    },
+    {
+      "enemyHp": 8999650,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999660 → 8999650.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8966 → 8965.",
+        },
+      ],
+      "n": 35,
+      "playerHp": 8965,
+    },
+    {
+      "enemyHp": 8999640,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999650 → 8999640.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8965 → 8964.",
+        },
+      ],
+      "n": 36,
+      "playerHp": 8964,
+    },
+    {
+      "enemyHp": 8999630,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999640 → 8999630.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8964 → 8963.",
+        },
+      ],
+      "n": 37,
+      "playerHp": 8963,
+    },
+    {
+      "enemyHp": 8999620,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999630 → 8999620.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8963 → 8962.",
+        },
+      ],
+      "n": 38,
+      "playerHp": 8962,
+    },
+    {
+      "enemyHp": 8999610,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999620 → 8999610.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8962 → 8961.",
+        },
+      ],
+      "n": 39,
+      "playerHp": 8961,
+    },
+    {
+      "enemyHp": 8999600,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 10. Dummy 8999610 → 8999600.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 1. Team 8961 → 8960.",
+        },
+        {
+          "kind": "field",
+          "text": "The round cap runs out.",
+        },
+        {
+          "kind": "result",
+          "text": "Draw — 40 rounds and neither side broke.",
+        },
+      ],
+      "n": 40,
+      "playerHp": 8960,
+    },
+  ],
+}
+`;
+
+exports[`simulate — pre-refactor single-player snapshots > huge team, fast kill 1`] = `
+{
+  "damageDealt": 7000,
+  "damageTaken": 45,
+  "outcome": "win",
+  "rounds": [
+    {
+      "enemyHp": 2500,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 3500. Goldfish 6000 → 2500.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 9000 → 8955.",
+        },
+      ],
+      "n": 1,
+      "playerHp": 8955,
+    },
+    {
+      "enemyHp": 0,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 3500. Goldfish 2500 → 0.",
+        },
+        {
+          "kind": "result",
+          "text": "Victory — the Goldfish is down in 2 rounds.",
+        },
+      ],
+      "n": 2,
+      "playerHp": 8955,
+    },
+  ],
+}
+`;
+
+exports[`simulate — pre-refactor single-player snapshots > no fighters, loses 1`] = `
+{
+  "damageDealt": 0,
+  "damageTaken": 225,
+  "outcome": "loss",
+  "rounds": [
+    {
+      "enemyHp": 6000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "No fighter on the team — the swing is skipped.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 200 → 155.",
+        },
+      ],
+      "n": 1,
+      "playerHp": 155,
+    },
+    {
+      "enemyHp": 6000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "No fighter on the team — the swing is skipped.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 155 → 110.",
+        },
+      ],
+      "n": 2,
+      "playerHp": 110,
+    },
+    {
+      "enemyHp": 6000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "No fighter on the team — the swing is skipped.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 110 → 65.",
+        },
+      ],
+      "n": 3,
+      "playerHp": 65,
+    },
+    {
+      "enemyHp": 6000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "No fighter on the team — the swing is skipped.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 65 → 20.",
+        },
+      ],
+      "n": 4,
+      "playerHp": 20,
+    },
+    {
+      "enemyHp": 6000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "No fighter on the team — the swing is skipped.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 20 → 0.",
+        },
+        {
+          "kind": "result",
+          "text": "Defeat — your team falls in 5 rounds.",
+        },
+      ],
+      "n": 5,
+      "playerHp": 0,
+    },
+  ],
+}
+`;
+
+exports[`simulate — pre-refactor single-player snapshots > plain team vs goldfish 1`] = `
+{
+  "damageDealt": 6000,
+  "damageTaken": 225,
+  "outcome": "win",
+  "rounds": [
+    {
+      "enemyHp": 5000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 1000. Goldfish 6000 → 5000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 9000 → 8955.",
+        },
+      ],
+      "n": 1,
+      "playerHp": 8955,
+    },
+    {
+      "enemyHp": 4000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 1000. Goldfish 5000 → 4000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8955 → 8910.",
+        },
+      ],
+      "n": 2,
+      "playerHp": 8910,
+    },
+    {
+      "enemyHp": 3000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 1000. Goldfish 4000 → 3000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8910 → 8865.",
+        },
+      ],
+      "n": 3,
+      "playerHp": 8865,
+    },
+    {
+      "enemyHp": 2000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 1000. Goldfish 3000 → 2000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8865 → 8820.",
+        },
+      ],
+      "n": 4,
+      "playerHp": 8820,
+    },
+    {
+      "enemyHp": 1000,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 1000. Goldfish 2000 → 1000.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8820 → 8775.",
+        },
+      ],
+      "n": 5,
+      "playerHp": 8775,
+    },
+    {
+      "enemyHp": 0,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 1000. Goldfish 1000 → 0.",
+        },
+        {
+          "kind": "result",
+          "text": "Victory — the Goldfish is down in 6 rounds.",
+        },
+      ],
+      "n": 6,
+      "playerHp": 8775,
+    },
+  ],
+}
+`;
+
+exports[`simulate — pre-refactor single-player snapshots > reflect bounces the goldfish 1`] = `
+{
+  "damageDealt": 4920,
+  "damageTaken": 1800,
+  "outcome": "draw",
+  "rounds": [
+    {
+      "enemyHp": 5877,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 6000 → 5900.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 9000 → 8955.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 5900 → 5877.",
+        },
+      ],
+      "n": 1,
+      "playerHp": 8955,
+    },
+    {
+      "enemyHp": 5754,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 5877 → 5777.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8955 → 8910.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 5777 → 5754.",
+        },
+      ],
+      "n": 2,
+      "playerHp": 8910,
+    },
+    {
+      "enemyHp": 5631,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 5754 → 5654.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8910 → 8865.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 5654 → 5631.",
+        },
+      ],
+      "n": 3,
+      "playerHp": 8865,
+    },
+    {
+      "enemyHp": 5508,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 5631 → 5531.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8865 → 8820.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 5531 → 5508.",
+        },
+      ],
+      "n": 4,
+      "playerHp": 8820,
+    },
+    {
+      "enemyHp": 5385,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 5508 → 5408.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8820 → 8775.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 5408 → 5385.",
+        },
+      ],
+      "n": 5,
+      "playerHp": 8775,
+    },
+    {
+      "enemyHp": 5262,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 5385 → 5285.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8775 → 8730.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 5285 → 5262.",
+        },
+      ],
+      "n": 6,
+      "playerHp": 8730,
+    },
+    {
+      "enemyHp": 5139,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 5262 → 5162.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8730 → 8685.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 5162 → 5139.",
+        },
+      ],
+      "n": 7,
+      "playerHp": 8685,
+    },
+    {
+      "enemyHp": 5016,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 5139 → 5039.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8685 → 8640.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 5039 → 5016.",
+        },
+      ],
+      "n": 8,
+      "playerHp": 8640,
+    },
+    {
+      "enemyHp": 4893,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 5016 → 4916.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8640 → 8595.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 4916 → 4893.",
+        },
+      ],
+      "n": 9,
+      "playerHp": 8595,
+    },
+    {
+      "enemyHp": 4770,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 4893 → 4793.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8595 → 8550.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 4793 → 4770.",
+        },
+      ],
+      "n": 10,
+      "playerHp": 8550,
+    },
+    {
+      "enemyHp": 4647,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 4770 → 4670.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8550 → 8505.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 4670 → 4647.",
+        },
+      ],
+      "n": 11,
+      "playerHp": 8505,
+    },
+    {
+      "enemyHp": 4524,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 4647 → 4547.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8505 → 8460.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 4547 → 4524.",
+        },
+      ],
+      "n": 12,
+      "playerHp": 8460,
+    },
+    {
+      "enemyHp": 4401,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 4524 → 4424.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8460 → 8415.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 4424 → 4401.",
+        },
+      ],
+      "n": 13,
+      "playerHp": 8415,
+    },
+    {
+      "enemyHp": 4278,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 4401 → 4301.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8415 → 8370.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 4301 → 4278.",
+        },
+      ],
+      "n": 14,
+      "playerHp": 8370,
+    },
+    {
+      "enemyHp": 4155,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 4278 → 4178.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8370 → 8325.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 4178 → 4155.",
+        },
+      ],
+      "n": 15,
+      "playerHp": 8325,
+    },
+    {
+      "enemyHp": 4032,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 4155 → 4055.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8325 → 8280.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 4055 → 4032.",
+        },
+      ],
+      "n": 16,
+      "playerHp": 8280,
+    },
+    {
+      "enemyHp": 3909,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 4032 → 3932.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8280 → 8235.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 3932 → 3909.",
+        },
+      ],
+      "n": 17,
+      "playerHp": 8235,
+    },
+    {
+      "enemyHp": 3786,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 3909 → 3809.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8235 → 8190.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 3809 → 3786.",
+        },
+      ],
+      "n": 18,
+      "playerHp": 8190,
+    },
+    {
+      "enemyHp": 3663,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 3786 → 3686.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8190 → 8145.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 3686 → 3663.",
+        },
+      ],
+      "n": 19,
+      "playerHp": 8145,
+    },
+    {
+      "enemyHp": 3540,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 3663 → 3563.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8145 → 8100.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 3563 → 3540.",
+        },
+      ],
+      "n": 20,
+      "playerHp": 8100,
+    },
+    {
+      "enemyHp": 3417,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 3540 → 3440.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8100 → 8055.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 3440 → 3417.",
+        },
+      ],
+      "n": 21,
+      "playerHp": 8055,
+    },
+    {
+      "enemyHp": 3294,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 3417 → 3317.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8055 → 8010.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 3317 → 3294.",
+        },
+      ],
+      "n": 22,
+      "playerHp": 8010,
+    },
+    {
+      "enemyHp": 3171,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 3294 → 3194.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 8010 → 7965.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 3194 → 3171.",
+        },
+      ],
+      "n": 23,
+      "playerHp": 7965,
+    },
+    {
+      "enemyHp": 3048,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 3171 → 3071.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7965 → 7920.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 3071 → 3048.",
+        },
+      ],
+      "n": 24,
+      "playerHp": 7920,
+    },
+    {
+      "enemyHp": 2925,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 3048 → 2948.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7920 → 7875.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 2948 → 2925.",
+        },
+      ],
+      "n": 25,
+      "playerHp": 7875,
+    },
+    {
+      "enemyHp": 2802,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 2925 → 2825.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7875 → 7830.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 2825 → 2802.",
+        },
+      ],
+      "n": 26,
+      "playerHp": 7830,
+    },
+    {
+      "enemyHp": 2679,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 2802 → 2702.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7830 → 7785.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 2702 → 2679.",
+        },
+      ],
+      "n": 27,
+      "playerHp": 7785,
+    },
+    {
+      "enemyHp": 2556,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 2679 → 2579.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7785 → 7740.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 2579 → 2556.",
+        },
+      ],
+      "n": 28,
+      "playerHp": 7740,
+    },
+    {
+      "enemyHp": 2433,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 2556 → 2456.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7740 → 7695.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 2456 → 2433.",
+        },
+      ],
+      "n": 29,
+      "playerHp": 7695,
+    },
+    {
+      "enemyHp": 2310,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 2433 → 2333.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7695 → 7650.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 2333 → 2310.",
+        },
+      ],
+      "n": 30,
+      "playerHp": 7650,
+    },
+    {
+      "enemyHp": 2187,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 2310 → 2210.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7650 → 7605.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 2210 → 2187.",
+        },
+      ],
+      "n": 31,
+      "playerHp": 7605,
+    },
+    {
+      "enemyHp": 2064,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 2187 → 2087.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7605 → 7560.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 2087 → 2064.",
+        },
+      ],
+      "n": 32,
+      "playerHp": 7560,
+    },
+    {
+      "enemyHp": 1941,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 2064 → 1964.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7560 → 7515.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 1964 → 1941.",
+        },
+      ],
+      "n": 33,
+      "playerHp": 7515,
+    },
+    {
+      "enemyHp": 1818,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 1941 → 1841.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7515 → 7470.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 1841 → 1818.",
+        },
+      ],
+      "n": 34,
+      "playerHp": 7470,
+    },
+    {
+      "enemyHp": 1695,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 1818 → 1718.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7470 → 7425.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 1718 → 1695.",
+        },
+      ],
+      "n": 35,
+      "playerHp": 7425,
+    },
+    {
+      "enemyHp": 1572,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 1695 → 1595.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7425 → 7380.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 1595 → 1572.",
+        },
+      ],
+      "n": 36,
+      "playerHp": 7380,
+    },
+    {
+      "enemyHp": 1449,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 1572 → 1472.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7380 → 7335.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 1472 → 1449.",
+        },
+      ],
+      "n": 37,
+      "playerHp": 7335,
+    },
+    {
+      "enemyHp": 1326,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 1449 → 1349.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7335 → 7290.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 1349 → 1326.",
+        },
+      ],
+      "n": 38,
+      "playerHp": 7290,
+    },
+    {
+      "enemyHp": 1203,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 1326 → 1226.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7290 → 7245.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 1226 → 1203.",
+        },
+      ],
+      "n": 39,
+      "playerHp": 7245,
+    },
+    {
+      "enemyHp": 1080,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 100. Goldfish 1203 → 1103.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Goldfish hits for 45. Team 7245 → 7200.",
+        },
+        {
+          "kind": "field",
+          "text": "Countermeasures reflect 23. Goldfish 1103 → 1080.",
+        },
+        {
+          "kind": "field",
+          "text": "The round cap runs out.",
+        },
+        {
+          "kind": "result",
+          "text": "Draw — 40 rounds and neither side broke.",
+        },
+      ],
+      "n": 40,
+      "playerHp": 7200,
+    },
+  ],
+}
+`;
+
+exports[`simulate — pre-refactor single-player snapshots > regen outheals a weak hit 1`] = `
+{
+  "damageDealt": 800,
+  "damageTaken": 1200,
+  "outcome": "draw",
+  "rounds": [
+    {
+      "enemyHp": 3980,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 4000 → 3980.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 1,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3960,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3980 → 3960.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 2,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3940,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3960 → 3940.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 3,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3920,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3940 → 3920.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 4,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3900,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3920 → 3900.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 5,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3880,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3900 → 3880.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 6,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3860,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3880 → 3860.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 7,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3840,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3860 → 3840.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 8,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3820,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3840 → 3820.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 9,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3800,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3820 → 3800.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 10,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3780,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3800 → 3780.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 11,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3760,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3780 → 3760.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 12,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3740,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3760 → 3740.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 13,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3720,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3740 → 3720.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 14,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3700,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3720 → 3700.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 15,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3680,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3700 → 3680.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 16,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3660,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3680 → 3660.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 17,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3640,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3660 → 3640.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 18,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3620,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3640 → 3620.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 19,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3600,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3620 → 3600.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 20,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3580,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3600 → 3580.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 21,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3560,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3580 → 3560.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 22,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3540,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3560 → 3540.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 23,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3520,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3540 → 3520.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 24,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3500,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3520 → 3500.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 25,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3480,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3500 → 3480.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 26,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3460,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3480 → 3460.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 27,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3440,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3460 → 3440.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 28,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3420,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3440 → 3420.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 29,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3400,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3420 → 3400.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 30,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3380,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3400 → 3380.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 31,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3360,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3380 → 3360.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 32,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3340,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3360 → 3340.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 33,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3320,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3340 → 3320.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 34,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3300,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3320 → 3300.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 35,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3280,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3300 → 3280.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 36,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3260,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3280 → 3260.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 37,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3240,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3260 → 3240.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 38,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3220,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3240 → 3220.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+      ],
+      "n": 39,
+      "playerHp": 500,
+    },
+    {
+      "enemyHp": 3200,
+      "lines": [
+        {
+          "kind": "you",
+          "text": "Your team hits for 20. Dummy 3220 → 3200.",
+        },
+        {
+          "kind": "enemy",
+          "text": "Dummy hits for 30. Team 500 → 470.",
+        },
+        {
+          "kind": "field",
+          "text": "Field heals 30. Team → 500.",
+        },
+        {
+          "kind": "field",
+          "text": "The round cap runs out.",
+        },
+        {
+          "kind": "result",
+          "text": "Draw — 40 rounds and neither side broke.",
+        },
+      ],
+      "n": 40,
+      "playerHp": 500,
+    },
+  ],
+}
+`;

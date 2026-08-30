@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { get } from 'svelte/store';
 import type { Card, Rarity } from '../src/lib/types';
 import { classifyCard } from '../src/lib/battle/classify';
-import { assembleTeam, simulate, type TeamStats } from '../src/lib/battle/engine';
+import { assembleTeam, simulateVsDummy, type TeamStats } from '../src/lib/battle/engine';
 import { GOLDFISH } from '../src/lib/battle/opponents';
 import { battleTeam } from '../src/lib/battle/team';
 import { applyMythicSignatures, rollSignature } from '../src/lib/signature';
@@ -125,7 +125,7 @@ describe('assembleTeam', () => {
 
 describe('simulate vs the Goldfish', () => {
   it('the goldfish soaks several rounds against a normal team', () => {
-    const r = simulate(stats({ maxHp: 9000, attack: 1000 }), GOLDFISH); // 6000 / 1000 -> 6 rounds
+    const r = simulateVsDummy(stats({ maxHp: 9000, attack: 1000 }), GOLDFISH); // 6000 / 1000 -> 6 rounds
     expect(r.outcome).toBe('win');
     expect(r.rounds).toHaveLength(6);
     expect(r.damageDealt).toBe(6000);
@@ -134,19 +134,19 @@ describe('simulate vs the Goldfish', () => {
   });
 
   it('a huge team still needs a couple of rounds', () => {
-    const r = simulate(stats({ maxHp: 9000, attack: 3500 }), GOLDFISH);
+    const r = simulateVsDummy(stats({ maxHp: 9000, attack: 3500 }), GOLDFISH);
     expect(r.outcome).toBe('win');
     expect(r.rounds).toHaveLength(2);
   });
 
   it('a team with no fighters cannot win and eventually falls', () => {
-    const r = simulate(stats({ maxHp: 200, attack: 0 }), GOLDFISH);
+    const r = simulateVsDummy(stats({ maxHp: 200, attack: 0 }), GOLDFISH);
     expect(r.outcome).toBe('loss');
     expect(r.damageDealt).toBe(0);
   });
 
   it('the last round carries a result line', () => {
-    const r = simulate(stats({ maxHp: 9000, attack: 3500 }), GOLDFISH);
+    const r = simulateVsDummy(stats({ maxHp: 9000, attack: 3500 }), GOLDFISH);
     expect(r.rounds.at(-1)?.lines.at(-1)?.kind).toBe('result');
   });
 });
@@ -172,7 +172,7 @@ describe('round effects', () => {
 
   it('disease stacks its damage up round after round', () => {
     // dotStart 20, dotRamp 20 -> rounds deal 20, 40, 60, 80, 100 ... to a 300 hp dummy
-    const r = simulate(stats({ maxHp: 5000, attack: 0, roundPlan: plan({ dotStart: 20, dotRamp: 20 }) }), {
+    const r = simulateVsDummy(stats({ maxHp: 5000, attack: 0, roundPlan: plan({ dotStart: 20, dotRamp: 20 }) }), {
       id: 'x', name: 'Dummy', blurb: '', maxHp: 300, attack: 0
     });
     expect(r.outcome).toBe('win');
@@ -182,7 +182,7 @@ describe('round effects', () => {
 
   it('scientists ramp the team attack every round', () => {
     // base 100, +50%/round -> r1 150, r2 200, r3 250 (cumulative 600) vs 550 hp
-    const r = simulate(
+    const r = simulateVsDummy(
       stats({ maxHp: 9000, attack: 100, roundPlan: plan({ atkRampPct: 0.5 }) }),
       { id: 'x', name: 'Dummy', blurb: '', maxHp: 550, attack: 0 }
     );
@@ -191,7 +191,7 @@ describe('round effects', () => {
   });
 
   it('a plant blooms only on its schedule', () => {
-    const r = simulate(
+    const r = simulateVsDummy(
       stats({ maxHp: 9000, attack: 0, roundPlan: plan({ blooms: [{ delay: 3, damage: 200 }] }) }),
       { id: 'x', name: 'Dummy', blurb: '', maxHp: 350, attack: 0 }
     );
@@ -201,7 +201,7 @@ describe('round effects', () => {
   });
 
   it('a charged vehicle grants an extra swing on its schedule', () => {
-    const r = simulate(
+    const r = simulateVsDummy(
       stats({ maxHp: 9000, attack: 100, roundPlan: plan({ overdrives: [2] }) }),
       { id: 'x', name: 'Dummy', blurb: '', maxHp: 500, attack: 0 }
     );
@@ -396,7 +396,7 @@ describe('mythic signatures', () => {
 
   it('Divine Shield negates the first enemy hit', () => {
     const t = stats({ maxHp: 100, attack: 5000, hooks: { ...stats({}).hooks, negateEnemyHits: 1 } });
-    const r = simulate(t, { id: 'x', name: 'Ogre', blurb: '', maxHp: 20000, attack: 60 });
+    const r = simulateVsDummy(t, { id: 'x', name: 'Ogre', blurb: '', maxHp: 20000, attack: 60 });
     // r1: team hits 5000, ogre answers but the shield eats it → 0 taken that round
     expect(r.rounds[0].lines.some((l) => l.text.includes('Divine Shield'))).toBe(true);
     expect(r.rounds[0].playerHp).toBe(100);
@@ -404,7 +404,7 @@ describe('mythic signatures', () => {
 
   it('Blitzkrieg adds a second team strike on the opening rounds', () => {
     const t = stats({ maxHp: 9000, attack: 100, hooks: { ...stats({}).hooks, blitzRounds: 2 } });
-    const r = simulate(t, { id: 'x', name: 'Dummy', blurb: '', maxHp: 900, attack: 0 });
+    const r = simulateVsDummy(t, { id: 'x', name: 'Dummy', blurb: '', maxHp: 900, attack: 0 });
     expect(r.rounds[0].lines.filter((l) => l.text.includes('for 100')).length).toBe(2);
   });
 });

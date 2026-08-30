@@ -37,7 +37,14 @@ const LIVING_TAGS = new Set<Tag>(['nature']);
 /** Tags that are almost always a work / place / institution / event. */
 const ABSTRACT_TAGS = new Set<Tag>(['cinema', 'music', 'geography', 'business', 'games']);
 
-export function classifyCard(card: Pick<Card, 'extract' | 'tags'>): Role {
+export function classifyCard(
+  card: Pick<Card, 'extract' | 'tags'> & { battleRole?: Role }
+): Role {
+  // A decoded arena defence ships the role directly — the extract it was derived
+  // from isn't transmitted. Pack-opened cards never set this, so nothing changes
+  // for the normal path.
+  if (card.battleRole === 'living' || card.battleRole === 'abstract') return card.battleRole;
+
   const text = card.extract ?? '';
 
   if (PERSON.test(text) || ORGANISM.test(text)) return 'living';

@@ -4,6 +4,12 @@
  * cards only — then environmental effects from the 'abstract' cards bend the
  * pool before the fight. The simulation is deterministic: no RNG, fixed damage,
  * so the combat log is reproducible and unit-testable.
+ *
+ * `simulate` is symmetric: two assembled teams trade blows, side A first. The
+ * A-first order is a deliberate attacker first-strike advantage — if A's swing
+ * empties B's pool, B never retaliates — so `simulate(A, B)` is not the strict
+ * inverse of `simulate(B, A)`. The single-player Goldfish fight runs through
+ * `simulateVsDummy`, which wraps a flat stat block as a one-sided team.
  */
 import type { Card } from '../types';
 import { classifyCard, type Role } from './classify';
@@ -134,10 +140,63 @@ export interface BattleResult {
 
 const clamp = (n: number) => Math.max(0, Math.round(n));
 
-/** Play the whole fight out and return every round plus the tally. */
-export function simulate(team: TeamStats, enemy: Opponent): BattleResult {
-  let playerHp = team.maxHp;
-  let enemyHp = enemy.maxHp;
+const ZERO_HOOKS: SignatureHooks = {
+  enemyAtkMult: 1,
+  negateEnemyHits: 0,
+  blitzRounds: 0,
+  comboEvery: 0,
+  comboBonus: 0,
+  apexAtkPct: 0,
+  longGamePer4: 0,
+  bloomHealFrac: 0
+};
+
+/** Wrap a flat {maxHp, attack} stat block as a one-sided team (no effects). */
+export function dummyTeam(o: { maxHp: number; attack: number }): TeamStats {
+  return {
+    members: [],
+    maxHp: Math.max(1, Math.round(o.maxHp)),
+    attack: Math.max(0, Math.round(o.attack)),
+    regen: 0,
+    reflect: 0,
+    mods: { hpFlat: 0, hpPct: 0, atkFlat: 0, atkPct: 0, regen: 0, reflect: 0 },
+    roundPlan: { effects: [], dotStart: 0, dotRamp: 0, atkRampPct: 0, blooms: [], overdrives: [] },
+    signatures: [],
+    hooks: { ...ZERO_HOOKS },
+    livingCount: o.attack > 0 ? 1 : 0,
+    abstractCount: 0
+  };
+}
+
+interface SideState {
+  stats: TeamStats;
+  hp: number;
+  atkRamp: number;
+  comboSwings: number;
+  shields: number;
+}
+
+const initSide = (stats: TeamStats): SideState => ({
+  stats,
+  hp: stats.maxHp,
+  atkRamp: 0,
+  comboSwings: 0,
+  shields: stats.hooks.negateEnemyHits
+});
+
+/**
+ * Play the whole fight out and return every round plus the tally. `outcome` and
+ * `damageDealt`/`damageTaken` are from side A's perspective.
+ */
+export function simulate(
+  a: TeamStats,
+  b: TeamStats,
+  labels: { bName?: string } = {}
+): BattleResult {
+  const bName = labels.bName ?? 'the enemy';
+
+  const A = initSide(a);
+  const B = initSide(b);
   let damageDealt = 0;
   let damageTaken = 0;
   const rounds: Round[] = [];
@@ -146,7 +205,7 @@ export function simulate(team: TeamStats, enemy: Opponent): BattleResult {
     kind: 'result',
     text:
       outcome === 'win'
-        ? `Victory — the ${enemy.name} is down in ${n} round${n === 1 ? '' : 's'}.`
+        ? `Victory — the ${bName} is down in ${n} round${n === 1 ? '' : 's'}.`
         : outcome === 'loss'
           ? `Defeat — your team falls in ${n} round${n === 1 ? '' : 's'}.`
           : `Draw — ${ROUND_CAP} rounds and neither side broke.`
@@ -154,140 +213,169 @@ export function simulate(team: TeamStats, enemy: Opponent): BattleResult {
 
   const end = (outcome: Outcome, n: number, lines: LogLine[]): BattleResult => {
     lines.push(resultLine(outcome, n));
-    rounds.push({ n, lines, playerHp: clamp(playerHp), enemyHp: clamp(enemyHp) });
+    rounds.push({ n, lines, playerHp: clamp(A.hp), enemyHp: clamp(B.hp) });
     return { outcome, rounds, damageDealt, damageTaken };
   };
 
-  const plan = team.roundPlan;
-  const h = team.hooks;
-  const noFighters = team.attack <= 0;
-  const enemyBase = Math.round(enemy.attack * h.enemyAtkMult);
-  let atkRamp = 0; // grows every round (Breakthrough / Crescendo / Compound Interest …)
-  let comboSwings = 0; // fight-wide swing counter for Combo
-  let shields = h.negateEnemyHits; // Divine Shield
+  // a 'hit' the attacker lands is A's dealt damage when A attacks, A's taken
+  // damage when B attacks; a 'reflect' bounces to the attacker, so it inverts.
+  const record = (isA: boolean, v: number, kind: 'hit' | 'reflect') => {
+    if ((kind === 'hit') === isA) damageDealt += v;
+    else damageTaken += v;
+  };
 
-  for (let n = 1; n <= ROUND_CAP; n++) {
-    const lines: LogLine[] = [];
+  /** One side's whole turn: ramp, swings (+ overdrive/blitz/combo), DoT, blooms. */
+  const actSide = (atk: SideState, def: SideState, n: number, lines: LogLine[], isA: boolean) => {
+    const h = atk.stats.hooks;
+    const plan = atk.stats.roundPlan;
+    const selfName = isA ? 'Team' : bName;
+    const foeName = isA ? bName : 'Team';
+    const atkNoFighters = atk.stats.attack <= 0;
 
-    // attack ramps a little more every round
     if (plan.atkRampPct > 0) {
-      atkRamp += plan.atkRampPct;
+      atk.atkRamp += plan.atkRampPct;
+      const pct = Math.round(atk.atkRamp * 100);
       lines.push({
         kind: 'field',
-        text: `📈 Attack ramp — team attack now +${Math.round(atkRamp * 100)}%.`
+        text: isA
+          ? `📈 Attack ramp — team attack now +${pct}%.`
+          : `📈 Attack ramp — ${bName} attack now +${pct}%.`
       });
     }
 
-    // this round's per-swing damage: ramp × Long Game (rounds elapsed) × Apex (while healthy)
     const longGame = 1 + h.longGamePer4 * Math.floor((n - 1) / 4);
-    const apex = playerHp > team.maxHp / 2 ? 1 + h.apexAtkPct : 1;
-    const roundAttack = noFighters ? 0 : Math.round(team.attack * (1 + atkRamp) * longGame * apex);
+    const apex = atk.hp > atk.stats.maxHp / 2 ? 1 + h.apexAtkPct : 1;
+    const roundAttack = atkNoFighters
+      ? 0
+      : Math.round(atk.stats.attack * (1 + atk.atkRamp) * longGame * apex);
 
-    // your team swings — once, + one per charged vehicle, + one on a blitz round
     const overdriveHits = plan.overdrives.filter((d) => n % d === 0).length;
     const blitzHit = n <= h.blitzRounds ? 1 : 0;
-    if (noFighters) {
-      lines.push({ kind: 'you', text: 'No fighter on the team — the swing is skipped.' });
+
+    if (atkNoFighters) {
+      lines.push(
+        isA
+          ? { kind: 'you', text: 'No fighter on the team — the swing is skipped.' }
+          : { kind: 'enemy', text: `${bName} does nothing in particular.` }
+      );
     } else {
+      const mult = def.stats.hooks.enemyAtkMult;
       for (let s = 0; s < 1 + overdriveHits + blitzHit; s++) {
-        comboSwings += 1;
-        const combo = h.comboEvery > 0 && comboSwings % h.comboEvery === 0;
-        const hit = combo ? Math.round(roundAttack * (1 + h.comboBonus)) : roundAttack;
-        enemyHp -= hit;
-        damageDealt += hit;
+        if (def.hp <= 0 || atk.hp <= 0) break;
+        atk.comboSwings += 1;
+        const combo = h.comboEvery > 0 && atk.comboSwings % h.comboEvery === 0;
+        let hit = combo ? Math.round(roundAttack * (1 + h.comboBonus)) : roundAttack;
+        hit = Math.round(hit * mult);
+
+        // a divine shield on the defender turns one swing aside
+        if (hit > 0 && def.shields > 0) {
+          def.shields -= 1;
+          lines.push({ kind: 'field', text: `✨ Divine Shield turns the blow aside.` });
+          continue;
+        }
+
+        def.hp -= hit;
+        record(isA, hit, 'hit');
         const label = combo
           ? '🎮 Combo — a heavy hit for '
           : s === 0
-            ? 'Your team hits for '
+            ? isA
+              ? 'Your team hits for '
+              : `${bName} hits for `
             : s <= overdriveHits
               ? '🚗 Overdrive — an extra strike for '
               : '🗡️ Blitzkrieg — a second strike for ';
         lines.push({
-          kind: s === 0 && !combo ? 'you' : 'field',
-          text: `${label}${hit}. ${enemy.name} ${clamp(enemyHp + hit)} → ${clamp(enemyHp)}.`
+          kind: s === 0 && !combo ? (isA ? 'you' : 'enemy') : 'field',
+          text: `${label}${hit}. ${foeName} ${clamp(def.hp + hit)} → ${clamp(def.hp)}.`
         });
-        if (enemyHp <= 0) return end('win', n, lines);
-      }
-    }
+        if (def.hp <= 0) break;
 
-    // disease festers, worse each round
-    if (plan.dotStart > 0 || plan.dotRamp > 0) {
-      const dot = plan.dotStart + plan.dotRamp * (n - 1);
-      if (dot > 0) {
-        enemyHp -= dot;
-        damageDealt += dot;
-        lines.push({
-          kind: 'field',
-          text: `🦠 Contagion festers for ${dot}. ${enemy.name} ${clamp(enemyHp + dot)} → ${clamp(enemyHp)}.`
-        });
-        if (enemyHp <= 0) return end('win', n, lines);
-      }
-    }
-
-    // plants that have finished charging bloom
-    for (const b of plan.blooms) {
-      if (n % b.delay === 0) {
-        enemyHp -= b.damage;
-        damageDealt += b.damage;
-        lines.push({
-          kind: 'field',
-          text: `🌱 Bloom — ${b.damage} damage. ${enemy.name} ${clamp(enemyHp + b.damage)} → ${clamp(enemyHp)}.`
-        });
-        if (h.bloomHealFrac > 0) {
-          const heal = Math.min(Math.round(b.damage * h.bloomHealFrac), team.maxHp - playerHp);
-          if (heal > 0) {
-            playerHp += heal;
-            lines.push({ kind: 'field', text: `🌱 Fast Bloom heals ${heal}. Team → ${clamp(playerHp)}.` });
+        // the defender bounces a fraction of a swing back
+        if (def.stats.attack > 0 && def.stats.reflect > 0) {
+          const back = Math.round(hit * def.stats.reflect);
+          if (back > 0) {
+            atk.hp -= back;
+            record(isA, back, 'reflect');
+            lines.push({
+              kind: 'field',
+              text: `Countermeasures reflect ${back}. ${selfName} ${clamp(atk.hp + back)} → ${clamp(atk.hp)}.`
+            });
+            if (atk.hp <= 0) break;
           }
         }
       }
     }
-    if (enemyHp <= 0) return end('win', n, lines);
 
-    // enemy answers
-    let dmg = enemyBase;
-    if (dmg > 0 && shields > 0) {
-      shields -= 1;
-      dmg = 0;
-      lines.push({ kind: 'field', text: `✨ Divine Shield turns the blow aside.` });
+    // disease festers, worse each round
+    if (def.hp > 0 && (plan.dotStart > 0 || plan.dotRamp > 0)) {
+      const dot = plan.dotStart + plan.dotRamp * (n - 1);
+      if (dot > 0) {
+        def.hp -= dot;
+        record(isA, dot, 'hit');
+        lines.push({
+          kind: 'field',
+          text: `🦠 Contagion festers for ${dot}. ${foeName} ${clamp(def.hp + dot)} → ${clamp(def.hp)}.`
+        });
+      }
     }
-    if (dmg > 0) {
-      playerHp -= dmg;
-      damageTaken += dmg;
-      lines.push({
-        kind: 'enemy',
-        text: `${enemy.name} hits for ${dmg}. Team ${clamp(playerHp + dmg)} → ${clamp(playerHp)}.`
-      });
-      if (!noFighters && team.reflect > 0) {
-        const back = Math.round(dmg * team.reflect);
-        if (back > 0) {
-          enemyHp -= back;
-          damageDealt += back;
-          lines.push({
-            kind: 'field',
-            text: `Countermeasures reflect ${back}. ${enemy.name} ${clamp(enemyHp + back)} → ${clamp(enemyHp)}.`
-          });
-          if (enemyHp <= 0) return end('win', n, lines);
+
+    // plants that have finished charging bloom (all due blooms resolve together)
+    if (def.hp > 0) {
+      for (const bl of plan.blooms) {
+        if (n % bl.delay !== 0) continue;
+        def.hp -= bl.damage;
+        record(isA, bl.damage, 'hit');
+        lines.push({
+          kind: 'field',
+          text: `🌱 Bloom — ${bl.damage} damage. ${foeName} ${clamp(def.hp + bl.damage)} → ${clamp(def.hp)}.`
+        });
+        if (h.bloomHealFrac > 0) {
+          const heal = Math.min(Math.round(bl.damage * h.bloomHealFrac), atk.stats.maxHp - atk.hp);
+          if (heal > 0) {
+            atk.hp += heal;
+            lines.push({
+              kind: 'field',
+              text: `🌱 Fast Bloom heals ${heal}. ${selfName} → ${clamp(atk.hp)}.`
+            });
+          }
         }
       }
-    } else if (enemyBase === 0) {
-      lines.push({ kind: 'enemy', text: `${enemy.name} does nothing in particular.` });
     }
+  };
 
-    if (playerHp <= 0) return end('loss', n, lines);
-
-    // end-of-round regen
-    if (team.regen > 0 && playerHp < team.maxHp) {
-      const healed = Math.min(team.regen, team.maxHp - playerHp);
-      playerHp += healed;
-      lines.push({ kind: 'field', text: `Field heals ${healed}. Team → ${clamp(playerHp)}.` });
+  const regen = (side: SideState, name: string, lines: LogLine[]) => {
+    if (side.stats.regen > 0 && side.hp > 0 && side.hp < side.stats.maxHp) {
+      const healed = Math.min(side.stats.regen, side.stats.maxHp - side.hp);
+      side.hp += healed;
+      lines.push({ kind: 'field', text: `Field heals ${healed}. ${name} → ${clamp(side.hp)}.` });
     }
+  };
 
-    rounds.push({ n, lines, playerHp: clamp(playerHp), enemyHp: clamp(enemyHp) });
+  for (let n = 1; n <= ROUND_CAP; n++) {
+    const lines: LogLine[] = [];
+
+    actSide(A, B, n, lines, true);
+    if (B.hp <= 0) return end('win', n, lines);
+    if (A.hp <= 0) return end('loss', n, lines);
+
+    actSide(B, A, n, lines, false);
+    if (B.hp <= 0) return end('win', n, lines);
+    if (A.hp <= 0) return end('loss', n, lines);
+
+    regen(A, 'Team', lines);
+    regen(B, bName, lines);
+
+    rounds.push({ n, lines, playerHp: clamp(A.hp), enemyHp: clamp(B.hp) });
   }
 
   const last = rounds[rounds.length - 1];
   last.lines.push({ kind: 'field', text: 'The round cap runs out.' });
   last.lines.push(resultLine('draw', ROUND_CAP));
   return { outcome: 'draw', rounds, damageDealt, damageTaken };
+}
+
+/** The single-player path: a team against a flat practice stat block. */
+export function simulateVsDummy(team: TeamStats, enemy: Opponent): BattleResult {
+  return simulate(team, dummyTeam(enemy), { bName: enemy.name });
 }

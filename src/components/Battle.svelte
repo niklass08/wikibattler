@@ -1,11 +1,9 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
-  import { fade, fly } from 'svelte/transition';
   import { collection, favourites } from '../lib/collection';
   import { battleTeam } from '../lib/battle/team';
   import {
     assembleTeam,
-    simulate,
+    simulateVsDummy,
     TEAM_SIZE,
     MAX_MYTHIC,
     type BattleResult
@@ -15,6 +13,7 @@
   import { TAG_LABEL, TAGS, type Tag } from '../lib/tags';
   import { view } from '../stores/view';
   import Card from './Card.svelte';
+  import BattlePlayback, { type CrestChip } from './BattlePlayback.svelte';
   import { RARITIES, type Card as CardT, type Rarity } from '../lib/types';
   import { fuzzyMatch } from '../lib/fuzzy';
 
@@ -112,56 +111,26 @@
 
   // --- fight playback -------------------------------------------------------
   let result = $state<BattleResult | null>(null);
-  let shown = $state(0);
-  let timer: ReturnType<typeof setTimeout> | undefined;
 
-  function tick() {
-    if (!result || shown >= result.rounds.length) return;
-    shown += 1;
-    // read the opening rounds at a human pace, then accelerate through a grind
-    const delay = shown < 6 ? 800 : shown < 16 ? 360 : 130;
-    timer = setTimeout(tick, delay);
-  }
+  // the team crest, shared with <BattlePlayback>
+  const teamCrest = $derived<CrestChip[]>(
+    team.members.slice(0, 7).map((m) => ({
+      icon: m.effect ? m.effect.icon : ROLE_META.living.icon,
+      label: m.effect ? `${m.card.title} — ${m.effect.name}` : `${m.card.title} — ${ROLE_META.living.label}`,
+      rarity: m.card.rarity
+    }))
+  );
 
   function startFight() {
     if (teamCards.length === 0) return;
-    clearTimeout(timer);
-    result = simulate(team, GOLDFISH);
-    shown = 0;
+    result = simulateVsDummy(team, GOLDFISH);
     phase = 'fight';
-    timer = setTimeout(tick, 350);
-  }
-
-  function skip() {
-    clearTimeout(timer);
-    if (result) shown = result.rounds.length;
   }
 
   function backToBuild() {
-    clearTimeout(timer);
     phase = 'build';
     result = null;
-    shown = 0;
   }
-
-  onDestroy(() => clearTimeout(timer));
-
-  const curRound = $derived(result && shown > 0 ? result.rounds[shown - 1] : null);
-  const playerHp = $derived(curRound ? curRound.playerHp : team.maxHp);
-  const enemyHp = $derived(curRound ? curRound.enemyHp : GOLDFISH.maxHp);
-  const visibleRounds = $derived(result ? result.rounds.slice(0, shown) : []);
-  const done = $derived(!!result && shown >= result.rounds.length);
-
-  const pctPlayer = $derived(Math.max(0, Math.min(100, (playerHp / Math.max(1, team.maxHp)) * 100)));
-  const pctEnemy = $derived(
-    Math.max(0, Math.min(100, (enemyHp / Math.max(1, GOLDFISH.maxHp)) * 100))
-  );
-
-  let logEl = $state<HTMLElement>();
-  $effect(() => {
-    void visibleRounds.length;
-    logEl?.scrollTo({ top: logEl.scrollHeight, behavior: 'smooth' });
-  });
 </script>
 
 <section class="battle wrap">
@@ -347,60 +316,20 @@
       </div>
     {/if}
   {:else if result}
-    <div class="arena" in:fade={{ duration: 160 }}>
-      <div class="sides">
-        <div class="side enemy">
-          <div class="fish">🐟</div>
-          <h2>{GOLDFISH.name}</h2>
-          <p class="hp mono">{enemyHp} / {GOLDFISH.maxHp}</p>
-          <div class="bar"><span class="fill enemy" style="width:{pctEnemy}%"></span></div>
-          <p class="blurb">{GOLDFISH.blurb}</p>
-        </div>
-
-        <div class="vs mono">vs</div>
-
-        <div class="side you">
-          <div class="crest">
-            {#each team.members.slice(0, 7) as m (m.card.id)}
-              <span
-                class="chip rarity-{m.card.rarity}"
-                title={m.effect ? `${m.card.title} — ${m.effect.name}` : `${m.card.title} — ${ROLE_META.living.label}`}
-              >
-                {m.effect ? m.effect.icon : ROLE_META.living.icon}
-              </span>
-            {/each}
-          </div>
-          <h2>Your team</h2>
-          <p class="hp mono">{playerHp} / {team.maxHp}</p>
-          <div class="bar"><span class="fill you" style="width:{pctPlayer}%"></span></div>
-          <p class="blurb">{team.attack} attack · {team.livingCount} fighting · {team.abstractCount} on the field</p>
-        </div>
-      </div>
-
-      <div class="log" bind:this={logEl}>
-        {#each visibleRounds as r (r.n)}
-          <div class="round" in:fly={{ y: 8, duration: 200 }}>
-            <div class="rn mono">Round {r.n}</div>
-            {#each r.lines as line}
-              <p class="line {line.kind}">{line.text}</p>
-            {/each}
-          </div>
-        {/each}
-      </div>
-
-      <div class="ctl">
-        {#if !done}
-          <button class="btn btn--ghost" onclick={skip}>Skip ⏭</button>
-        {:else}
-          <span class="verdict {result.outcome}">
-            {result.outcome === 'win' ? 'Victory' : result.outcome === 'loss' ? 'Defeat' : 'Draw'}
-            · {result.damageDealt} dealt · {result.damageTaken} taken
-          </span>
-          <button class="btn btn--ghost" onclick={startFight}>Rematch</button>
-          <button class="btn" onclick={backToBuild}>Back to team</button>
-        {/if}
-      </div>
-    </div>
+    <BattlePlayback
+      {result}
+      aName="Your team"
+      bName={GOLDFISH.name}
+      aMaxHp={team.maxHp}
+      bMaxHp={GOLDFISH.maxHp}
+      aCrest={teamCrest}
+      aBlurb={`${team.attack} attack · ${team.livingCount} fighting · ${team.abstractCount} on the field`}
+      bBlurb={GOLDFISH.blurb}
+      bIcon="🐟"
+      onRematch={startFight}
+      onExit={backToBuild}
+      exitLabel="Back to team"
+    />
   {/if}
 </section>
 
@@ -759,154 +688,5 @@
     background: var(--accent, var(--rare));
     padding: 2px 8px;
     border-radius: 999px;
-  }
-
-  /* --- arena --- */
-  .arena {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-  .sides {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    gap: 16px;
-  }
-  @media (max-width: 620px) {
-    .sides {
-      grid-template-columns: 1fr;
-    }
-    .vs {
-      display: none;
-    }
-  }
-  .side {
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--surface);
-    padding: 18px;
-    text-align: center;
-  }
-  .side h2 {
-    font-size: 17px;
-    font-weight: 700;
-    margin-top: 6px;
-  }
-  .fish {
-    font-size: 40px;
-    line-height: 1;
-  }
-  .crest {
-    display: flex;
-    justify-content: center;
-    gap: 4px;
-    flex-wrap: wrap;
-  }
-  .chip {
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
-    font-size: 11px;
-    border: 1px solid color-mix(in srgb, var(--accent, var(--text)) 45%, var(--line));
-    color: var(--accent, var(--text));
-  }
-  .hp {
-    font-size: 13px;
-    color: var(--text-dim);
-    margin-top: 8px;
-  }
-  .bar {
-    height: 8px;
-    border-radius: 999px;
-    background: var(--surface-2);
-    overflow: hidden;
-    margin-top: 6px;
-  }
-  .fill {
-    display: block;
-    height: 100%;
-    border-radius: 999px;
-    transition: width 400ms var(--ease);
-  }
-  .fill.you {
-    background: var(--uncommon);
-  }
-  .fill.enemy {
-    background: var(--mythic-2);
-  }
-  .blurb {
-    margin-top: 10px;
-    font-size: 12px;
-    color: var(--text-faint);
-    line-height: 1.5;
-  }
-  .vs {
-    font-size: 13px;
-    color: var(--text-faint);
-    letter-spacing: 0.1em;
-  }
-
-  .log {
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--surface);
-    padding: 14px 16px;
-    max-height: 320px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .round {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-  .rn {
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-faint);
-  }
-  .line {
-    font-size: 13px;
-    line-height: 1.5;
-  }
-  .line.you {
-    color: var(--uncommon);
-  }
-  .line.enemy {
-    color: var(--mythic-2);
-  }
-  .line.field {
-    color: var(--rare);
-  }
-  .line.result {
-    font-weight: 700;
-    color: var(--text);
-    margin-top: 2px;
-  }
-
-  .ctl {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    min-height: 44px;
-  }
-  .verdict {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-dim);
-  }
-  .verdict.win {
-    color: var(--uncommon);
-  }
-  .verdict.loss {
-    color: var(--mythic-2);
   }
 </style>
