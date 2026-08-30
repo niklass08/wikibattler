@@ -5,6 +5,7 @@
   import { view } from '../stores/view';
   import { fetchCategories } from '../lib/wiki';
   import { showsStrength, showsDefence } from '../lib/battle/cardStat';
+  import { fuzzyMatch } from '../lib/fuzzy';
   import Card from './Card.svelte';
   import CardDetail from './CardDetail.svelte';
   import type { Card as CardT } from '../lib/types';
@@ -86,13 +87,18 @@
 
   const shown = $derived(
     owned
-      .filter((c) => !q || c.title.toLowerCase().includes(q))
+      .filter((c) => !q || fuzzyMatch(q, c.title).hit)
       .filter((c) => !favOnly || $favourites.has(c.id))
       .filter((c) => rarityFilter === 'all' || c.rarity === rarityFilter)
       .filter((c) => tagFilter === 'all' || (c.tags ?? []).includes(tagFilter))
       // a stat sort only lists cards that actually show that stat
       .filter((c) => (sort === 'strength' ? showsStrength(c) : sort === 'defence' ? showsDefence(c) : true))
       .sort((a, b) => {
+        // an active query sorts by match quality, ahead of the chosen sort
+        if (q) {
+          const d = fuzzyMatch(q, b.title).score - fuzzyMatch(q, a.title).score;
+          if (d !== 0) return d;
+        }
         if (sort === 'name') return a.title.localeCompare(b.title);
         if (sort === 'strength') return b.strength - a.strength;
         if (sort === 'defence') return b.defence - a.defence;

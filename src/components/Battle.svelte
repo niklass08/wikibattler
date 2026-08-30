@@ -16,6 +16,7 @@
   import { view } from '../stores/view';
   import Card from './Card.svelte';
   import { RARITIES, type Card as CardT, type Rarity } from '../lib/types';
+  import { fuzzyMatch } from '../lib/fuzzy';
 
   type Phase = 'build' | 'fight';
   let phase = $state<Phase>('build');
@@ -61,7 +62,7 @@
   // the grid never reshuffles under the cursor while you build
   const roster = $derived(
     owned
-      .filter((c) => !q || c.title.toLowerCase().includes(q))
+      .filter((c) => !q || fuzzyMatch(q, c.title).hit)
       .filter((c) => !favOnly || $favourites.has(c.id))
       .filter((c) => themeFilter === 'all' || (c.tags ?? []).includes(themeFilter))
       .filter((c) => rarityFilter === 'all' || c.rarity === rarityFilter)
@@ -75,6 +76,11 @@
             : true
       )
       .sort((a, b) => {
+        // an active query sorts by match quality, ahead of the chosen sort
+        if (q) {
+          const d = fuzzyMatch(q, b.title).score - fuzzyMatch(q, a.title).score;
+          if (d !== 0) return d;
+        }
         if (rsort === 'name') return a.title.localeCompare(b.title);
         if (rsort === 'strength') return b.strength - a.strength;
         if (rsort === 'defence') return b.defence - a.defence;
