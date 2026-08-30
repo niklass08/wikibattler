@@ -2,7 +2,7 @@
   import { collection } from '../lib/collection';
   import { battleTeam } from '../lib/battle/team';
   import { assembleTeam, simulate, type BattleResult, type TeamStats } from '../lib/battle/engine';
-  import { ROLE_META } from '../lib/battle/classify';
+  import { sideViewOf } from '../lib/battle/playback';
   import { decodeDefence, encodeDefence } from '../lib/battle/defence';
   import { view } from '../stores/view';
   import { arenaConfigured, getArena } from '../lib/firebase';
@@ -17,8 +17,9 @@
     type DefenceRow
   } from '../lib/arena/ladder';
   import Leaderboard from './Leaderboard.svelte';
-  import BattlePlayback, { type CrestChip } from './BattlePlayback.svelte';
+  import BattlePlayback from './BattlePlayback.svelte';
   import Card from './Card.svelte';
+  import { ROLE_META } from '../lib/battle/classify';
   import { RARITIES } from '../lib/types';
 
   type Boot = 'loading' | 'ready' | 'unavailable' | 'unconfigured';
@@ -31,15 +32,6 @@
     $battleTeam.map((id) => $collection[id]?.card).filter((c): c is NonNullable<typeof c> => !!c)
   );
   const myTeam = $derived(assembleTeam(myCards));
-  const myCrest = $derived(crestOf(myTeam));
-
-  function crestOf(team: TeamStats): CrestChip[] {
-    return team.members.slice(0, 7).map((m) => ({
-      icon: m.effect ? m.effect.icon : ROLE_META.living.icon,
-      label: m.effect ? `${m.card.title} — ${m.effect.name}` : `${m.card.title} — ${ROLE_META.living.label}`,
-      rarity: m.card.rarity
-    }));
-  }
 
   // --- boot ------------------------------------------------------------------
   $effect(() => {
@@ -140,6 +132,8 @@
     result: BattleResult;
     defTeam: TeamStats;
     prior: string | null;
+    a: import('../lib/battle/playback').SideView;
+    b: import('../lib/battle/playback').SideView;
   }
   let fight = $state<Fight | null>(null);
   let fightErr = $state<string | null>(null);
@@ -158,7 +152,8 @@
       return;
     }
     const defTeam = assembleTeam(decoded.cards);
-    const result = simulate(myTeam, defTeam, { bName: displayName(row.handle, row.uid) });
+    const defName = displayName(row.handle, row.uid);
+    const result = simulate(myTeam, defTeam, { bName: defName });
     let prior: string | null = null;
     try {
       const p = await myPriorAttack(row.uid);
@@ -166,7 +161,11 @@
     } catch {
       /* non-fatal */
     }
-    fight = { row, result, defTeam, prior };
+    const aSide = sideViewOf(displayName($profile.handle, uid), myTeam);
+    const bSide = sideViewOf(defName, defTeam, {
+      subtitle: prior ?? `${defTeam.attack} attack · ${defTeam.maxHp} HP`
+    });
+    fight = { row, result, defTeam, prior, a: aSide, b: bSide };
   }
 
   async function finishFight() {
@@ -228,14 +227,8 @@
   {:else if fight}
     <BattlePlayback
       result={fight.result}
-      aName={displayName($profile.handle, uid)}
-      bName={displayName(fight.row.handle, fight.row.uid)}
-      aMaxHp={myTeam.maxHp}
-      bMaxHp={fight.defTeam.maxHp}
-      aCrest={myCrest}
-      bCrest={crestOf(fight.defTeam)}
-      aBlurb={`${myTeam.attack} attack · ${myTeam.livingCount} fighting`}
-      bBlurb={`${fight.defTeam.attack} attack · ${fight.defTeam.livingCount} fighting${fight.prior ? ` · ${fight.prior}` : ''}`}
+      a={fight.a}
+      b={fight.b}
       onExit={finishFight}
       exitLabel={submitting ? 'Saving…' : 'Done'}
     />

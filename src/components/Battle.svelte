@@ -13,7 +13,8 @@
   import { TAG_LABEL, TAGS, type Tag } from '../lib/tags';
   import { view } from '../stores/view';
   import Card from './Card.svelte';
-  import BattlePlayback, { type CrestChip } from './BattlePlayback.svelte';
+  import BattlePlayback from './BattlePlayback.svelte';
+  import { sideViewOf, type SideView } from '../lib/battle/playback';
   import { RARITIES, type Card as CardT, type Rarity } from '../lib/types';
   import { fuzzyMatch } from '../lib/fuzzy';
 
@@ -112,14 +113,21 @@
   // --- fight playback -------------------------------------------------------
   let result = $state<BattleResult | null>(null);
 
-  // the team crest, shared with <BattlePlayback>
-  const teamCrest = $derived<CrestChip[]>(
-    team.members.slice(0, 7).map((m) => ({
-      icon: m.effect ? m.effect.icon : ROLE_META.living.icon,
-      label: m.effect ? `${m.card.title} — ${m.effect.name}` : `${m.card.title} — ${ROLE_META.living.label}`,
-      rarity: m.card.rarity
-    }))
+  const playerSide = $derived<SideView>(
+    sideViewOf('Your team', team, {
+      subtitle: `${team.attack} attack · ${team.livingCount} fighting · ${team.abstractCount} on the field`
+    })
   );
+  const goldfishSide: SideView = {
+    name: GOLDFISH.name,
+    subtitle: GOLDFISH.blurb,
+    cards: [],
+    roles: [],
+    fallbackIcon: '🐟',
+    bonuses: [],
+    maxHp: GOLDFISH.maxHp,
+    attack: GOLDFISH.attack
+  };
 
   function startFight() {
     if (teamCards.length === 0) return;
@@ -318,14 +326,8 @@
   {:else if result}
     <BattlePlayback
       {result}
-      aName="Your team"
-      bName={GOLDFISH.name}
-      aMaxHp={team.maxHp}
-      bMaxHp={GOLDFISH.maxHp}
-      aCrest={teamCrest}
-      aBlurb={`${team.attack} attack · ${team.livingCount} fighting · ${team.abstractCount} on the field`}
-      bBlurb={GOLDFISH.blurb}
-      bIcon="🐟"
+      a={playerSide}
+      b={goldfishSide}
       onRematch={startFight}
       onExit={backToBuild}
       exitLabel="Back to team"
