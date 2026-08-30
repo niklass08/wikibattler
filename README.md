@@ -74,11 +74,12 @@ Rarity/stat thresholds live in `src/lib/rarity.ts`.
 - **`src/lib/themes.ts`** — per-theme colour + icon + the `gsrsearch` query that
   sources on-theme candidates.
 - **Thematic pack building** (`draw.ts`): `buildPack({ theme })` sources candidates
-  via `wiki.searchEnriched` (`generator=search`, `gsrsort=random` for spread then
-  `gsrsort=relevance` to rescue the rare/mythic slots), keeps only pages that
-  `deriveTags` confirms are on-theme, and hands the same `RarityPools` to the
-  unchanged `generatePack`. `packQueue` follows `activePack`, capping a themed
-  queue at the number owned and stashing the other type's built packs for a fast
+  via `wiki.searchEnriched` (`generator=search&gsrsort=relevance`, page 0 for the
+  theme's flagship rare/mythic articles then a random offset for variety), keeps
+  only pages that `deriveTags` confirms are on-theme, and hands the same
+  `RarityPools` to the unchanged `generatePack`. Costs about the same handful of
+  requests as a random pack. `packQueue` follows `activePack`, caps a themed
+  queue at the number owned, and stashes the other type's built packs for a fast
   switch-back.
 
 ## Deploy

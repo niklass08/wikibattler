@@ -376,27 +376,23 @@ async function stockThemedBuckets(theme: Tag, targets: Record<Rarity, number>): 
     }
     return added;
   };
-  const bulkShort = () =>
-    themedBuckets.common.length < targets.common ||
-    themedBuckets.uncommon.length < targets.uncommon;
+  const total = () => RARITIES.reduce((s, r) => s + themedBuckets[r].length, 0);
   const rareShort = () =>
     themedBuckets.rare.length < targets.rare || themedBuckets.mythic.length < targets.mythic;
+  const need = targets.common + targets.uncommon + targets.rare + targets.mythic;
 
-  // random pass — variety; fills common / uncommon (rare/mythic are too scarce
-  // in a random slice of a keyword search, so the rescue pass handles those)
-  for (let i = 0; i < 10 && bulkShort(); i++) {
-    const pages = await wiki.searchEnriched(q, 20, 'random');
-    if (pages.length === 0) break;
-    if (take(pages) === 0 && i >= 3) break;
-  }
-
-  // rescue pass — relevance sort surfaces the theme's flagship, high-traffic
-  // articles, filling the rare/mythic bands the random pass starves (and topping
-  // up common/uncommon if the random pass came up short on a niche theme)
-  for (let i = 0, offset = 0; i < 4 && (rareShort() || bulkShort()); i++, offset += 20) {
+  // Relevance-sorted search only: it returns genuinely on-theme articles (better
+  // deriveTags hit rate than random keyword matches) spread across the view
+  // bands. Page 0 always runs — that's where the theme's flagship (rare/mythic)
+  // articles sit — then a random offset keeps successive builds varied. A themed
+  // build then costs about the same handful of requests as a random one.
+  const roll = 20 + Math.floor(Math.random() * 8) * 20; // 20..160
+  for (let i = 0; i < 6; i++) {
+    if (total() >= need && !rareShort()) break;
+    const offset = i === 0 ? 0 : roll + (i - 1) * 20;
     const pages = await wiki.searchEnriched(q, 20, 'relevance', offset);
     if (pages.length === 0) break;
-    if (take(pages) === 0) break;
+    if (take(pages) === 0 && i >= 2) break;
   }
 }
 

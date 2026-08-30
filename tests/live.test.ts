@@ -152,21 +152,28 @@ function linkCountsBody(titles: string[]) {
   };
 }
 
-/** `generator=search` — 20 on-theme pages; relevance sort returns the high-view band. */
-function searchBody(sort: string) {
-  const n = 20;
-  const views = sort === 'relevance' ? 300_000 : 4_000; // relevance ⇒ rare band
-  const pages = Array.from({ length: n }, (_, i) => ({
-    pageid: 500_000 + (sort === 'relevance' ? 1000 : 0) + i,
-    title: `Cinema ${sort} ${i}`,
-    fullurl: `https://en.wikipedia.org/wiki/Cinema_${sort}_${i}`,
+/** `generator=search` — 20 on-theme pages spread across the view bands. */
+function searchBody(offset: number) {
+  // a realistic-ish spread: a few rare/mythic near the top, then a long
+  // common/uncommon tail as you page deeper
+  const band = (i: number) => {
+    const rank = offset + i;
+    if (rank < 2) return 500_000; // mythic
+    if (rank < 6) return 200_000; // rare
+    if (rank < 14) return 40_000; // uncommon
+    return 3_000; // common
+  };
+  const pages = Array.from({ length: 20 }, (_, i) => ({
+    pageid: 500_000 + offset + i,
+    title: `Cinema ${offset + i}`,
+    fullurl: `https://en.wikipedia.org/wiki/Cinema_${offset + i}`,
     length: 55_000,
-    extract: `A ${sort} article about a film directed by someone.`,
+    extract: 'An article about a film directed by someone.',
     categories: [
       { title: 'Category:2001 films' },
       { title: 'Category:Films directed by Someone' }
     ],
-    pageviews: { a: views, b: views }
+    pageviews: { a: band(i) / 2, b: band(i) / 2 }
   }));
   return { query: { pages } };
 }
@@ -179,7 +186,7 @@ const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
   }
   if (url.includes('generator=random')) return jsonResponse(randomPagesBody(20));
   if (url.includes('generator=search')) {
-    return jsonResponse(searchBody(new URL(url).searchParams.get('gsrsort') ?? 'random'));
+    return jsonResponse(searchBody(Number(new URL(url).searchParams.get('gsroffset') ?? 0)));
   }
   if (url.includes('action=parse')) return jsonResponse(linksBody());
   const titles = new URL(url).searchParams.get('titles') ?? '';

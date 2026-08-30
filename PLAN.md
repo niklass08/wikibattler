@@ -471,10 +471,11 @@ Export/import collection as JSON — nice, cheap, do it if time allows.
   untouched).
 - **Thematic pack sourcing** (`draw.ts`): `buildPack({ theme })` fills a separate
   `themedBuckets` (one theme active at a time, `usedIds` shared) from
-  `wiki.searchEnriched` — `generator=search`, `gsrsort=random` pass for spread
-  then a `gsrsort=relevance` rescue pass for the rare/mythic bands — keeping only
-  pages `deriveTags` confirms on-theme. Everything from `generatePack` onward is
-  the shared `assembleFrom` tail. Themed buckets are not persisted.
+  `wiki.searchEnriched` — `generator=search&gsrsort=relevance`, page 0 (the
+  theme's flagship rare/mythic articles) then a random offset for variety —
+  keeping only pages `deriveTags` confirms on-theme. ~5 search calls, so a themed
+  build costs about the same as a random one. Everything from `generatePack`
+  onward is the shared `assembleFrom` tail. Themed buckets are not persisted.
 - **`packQueue`** subscribes to `activePack` + `ownedPacks`: `target()` caps a
   themed queue at `min(owned, MAX_PREFETCH)`; a type switch bumps `switchGen`
   (discards stale in-flight builds), stashes the old queue in memory, rebuilds;
