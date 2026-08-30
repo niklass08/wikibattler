@@ -393,6 +393,9 @@
   }
   input {
     flex: 1;
+    /* a flex item won't shrink past its intrinsic width without this, so the
+       input shoves the Continue button off the side of a phone */
+    min-width: 0;
     font: inherit;
     font-size: 14px;
     color: var(--text);
@@ -500,5 +503,13 @@
     display: flex;
     gap: 10px;
     margin-top: 14px;
+  }
+
+  /* iOS Safari zooms the page in when a control under 16px takes focus,
+     and never zooms back out. Keep touch layouts at the threshold. */
+  @media (max-width: 820px) {
+    input {
+      font-size: 16px;
+    }
   }
 </style>

@@ -757,4 +757,12 @@
     .pb.shake, .team.hit, .cardslot, .float, .swords { animation: none !important; }
     .mmark, .team, .hpbar .fill, .hpbar .ghost { transition: none !important; }
   }
+
+  /* Apple's touch guidance is a 44pt minimum; the desktop chip sizes land
+     around 34-38px, which is fiddly under a thumb. */
+  @media (max-width: 820px) {
+    .mini-btn {
+      padding-block: 12px;
+    }
+  }
 </style>

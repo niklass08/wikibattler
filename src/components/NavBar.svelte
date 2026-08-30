@@ -71,6 +71,8 @@
     position: sticky;
     top: 0;
     z-index: 20;
+    /* sits under the status bar / notch without this, because of viewport-fit=cover */
+    padding-top: env(safe-area-inset-top);
     background: color-mix(in srgb, var(--bg) 80%, transparent);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--line);
@@ -216,6 +218,14 @@
     .burger span {
       animation: none;
       transition: none;
+    }
+  }
+
+  /* Apple's touch guidance is a 44pt minimum; the desktop chip sizes land
+     around 34-38px, which is fiddly under a thumb. */
+  @media (max-width: 820px) {
+    .mark {
+      padding-block: 8px;
     }
   }
 </style>

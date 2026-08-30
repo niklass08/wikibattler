@@ -33,6 +33,9 @@ button {
   background: none;
   border: none;
   cursor: pointer;
+  /* iOS paints a grey box over anything tappable; the hover/active styles
+     already give the feedback */
+  -webkit-tap-highlight-color: transparent;
 }
 
 img {
@@ -54,7 +57,12 @@ img {
   width: 100%;
   max-width: var(--maxw);
   margin: 0 auto;
-  padding-inline: var(--pad);
+  /* index.html sets viewport-fit=cover, so the layout runs under the notch and
+     the home indicator. Keep content clear of them — the insets are 0 except on
+     a device that actually has them (and in landscape, where the notch is on a
+     side). */
+  padding-left: max(var(--pad), env(safe-area-inset-left));
+  padding-right: max(var(--pad), env(safe-area-inset-right));
 }
 
 .btn {

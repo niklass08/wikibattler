@@ -40,7 +40,13 @@
 
 <style>
   main {
-    min-height: calc(100dvh - var(--nav-h) - var(--footer-h));
+    /* the safe-area insets are added to the sticky nav and the footer, so take
+       them off here too or the page gains that much dead scroll on a notched
+       device */
+    min-height: calc(
+      100dvh - var(--nav-h) - var(--footer-h) - env(safe-area-inset-top) -
+        env(safe-area-inset-bottom)
+    );
   }
   .load-fail {
     padding-block: 18vh;
@@ -52,7 +58,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: var(--footer-h);
+    /* grow by the inset rather than letting border-box eat into the text */
+    height: calc(var(--footer-h) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
     color: var(--text-faint);
     font-size: 12px;
     text-align: center;

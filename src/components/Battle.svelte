@@ -691,4 +691,38 @@
     padding: 2px 8px;
     border-radius: 999px;
   }
+
+  /* iOS Safari zooms the page in when a control under 16px takes focus,
+     and never zooms back out. Keep touch layouts at the threshold. */
+  @media (max-width: 820px) {
+    .search {
+      font-size: 16px;
+    }
+    .sort select {
+      font-size: 16px;
+    }
+  }
+
+  /* Apple's touch guidance is a 44pt minimum; the desktop chip sizes land
+     around 34-38px, which is fiddly under a thumb. */
+  @media (max-width: 820px) {
+    .chips button,
+    .themes button {
+      padding-block: 12px;
+    }
+    .search {
+      padding-block: 11px;
+    }
+    .sort select {
+      padding-block: 11px;
+    }
+    .grid {
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+    }
+    /* seven across is unreadably small on a phone — wrap to four */
+    .slots {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
 </style>
