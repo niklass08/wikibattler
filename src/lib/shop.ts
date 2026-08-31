@@ -41,6 +41,9 @@ function createKnowledge() {
       });
       return ok;
     },
+    hydrate(n: number) {
+      set(persist(Number.isFinite(n) && n > 0 ? Math.floor(n) : 0));
+    },
     reset() {
       set(persist(0));
     }

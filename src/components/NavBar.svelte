@@ -2,6 +2,7 @@
   import { view, type View } from '../stores/view';
   import { collection } from '../lib/collection';
   import { knowledge } from '../lib/shop';
+  import Account from './Account.svelte';
 
   const owned = $derived(Object.keys($collection).length);
 
@@ -62,6 +63,7 @@
       <button class="help" class:active={$view === 'help'} onclick={() => go('help')}>
         Help
       </button>
+      <Account />
     </nav>
   </div>
 </header>
@@ -205,6 +207,21 @@
     }
     nav button.help {
       color: var(--text-dim);
+    }
+    nav :global(.acct),
+    nav :global(.signin) {
+      width: 100%;
+    }
+    nav :global(.signin) {
+      justify-content: space-between;
+      padding: 13px 14px;
+      font-size: 16px;
+    }
+    nav :global(.chip) {
+      width: 100%;
+      justify-content: flex-start;
+      padding: 13px 14px;
+      font-size: 16px;
     }
   }
   @keyframes menu-in {

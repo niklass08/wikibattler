@@ -21,6 +21,24 @@ service cloud.firestore {
       ).data.rated == true;
     }
 
+    // The player's own collection, synced across their devices. The ONLY
+    // private tree in this database — everything under defences/ and profiles/
+    // is world-readable so the ladder works without a backend, but a collection
+    // is nobody else's business, so both the meta doc and its shards are owner-
+    // gated for read as well as write.
+    //
+    // The collection is split across `chunks/0..7` (see cloud/wire.ts): one
+    // deflated blob per shard, keyed by card id, so a 1 MiB document cap does
+    // not put a ceiling on a collection and opening a pack rewrites only the
+    // shards it touched.
+    match /collections/{uid} {
+      allow read, write: if isOwner(uid);
+
+      match /chunks/{shard} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
     // A published defending team. Only its owner ever writes it.
     match /defences/{uid} {
       allow read: if true;

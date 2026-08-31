@@ -17,7 +17,8 @@ and **view your collection**. **Disenchant** unwanted cards for **knowledge**
 thematic packs it is meant for). Plus **Battle** (a deterministic auto-battler vs a
 practice dummy) and the **Arena** (an opt-in global PvP ladder — see below). The
 core game is fully client-side — no backend, no API keys. Your collection lives in
-`localStorage`.
+`localStorage`, and can optionally be **synced to a Google account** so it follows
+you between devices (see below).
 
 See [`PLAN.md`](./PLAN.md) for the full design + API notes.
 
@@ -136,7 +137,8 @@ If the config still has its `REPLACE_…` placeholders the Arena tab shows
 
 ### Pointing it at your own Firebase project
 
-1. Create a Firestore project; **Build → Authentication → Sign-in method → Anonymous → Enable**.
+1. Create a Firestore project; **Build → Authentication → Sign-in method** — enable
+   both **Anonymous** (the Arena identity) and **Google** (cloud sync).
 2. `npm i -g firebase-tools && firebase login`, set the project id in `.firebaserc`.
 3. `firebase deploy --only firestore` (pushes `firestore.rules` + `firestore.indexes.json`).
 4. **Authentication → Settings → Authorized domains** — add your Pages origin
@@ -158,6 +160,74 @@ firebase emulators:start --only firestore,auth
 `npm test` stays emulator-free; it covers the deterministic pieces
 (`tests/defence.test.ts`, `tests/elo.test.ts`, `tests/battle.symmetric.test.ts`,
 `tests/battle.snapshot.test.ts`, `tests/arena-logic.test.ts`).
+
+## Cloud sync (sign in with Google)
+
+Optional. Signed out, nothing changes: the game never contacts a backend and the
+Firebase SDK is not even downloaded. Sign in and the collection is mirrored to
+Firestore under `collections/{uid}`, so opening WikiTCG on a phone and signing in
+with the same Google account brings the collection with it.
+
+### Identity
+
+Signing in **links** the Google credential onto the existing anonymous account, so
+the uid does not change and Arena rating, defence and attack history carry over
+untouched.
+
+The exception is a second device. There the Google account already owns a uid, so
+`linkWithPopup` fails with `auth/credential-already-in-use` and the app signs in
+*as* that account instead. The collections merge, but the anonymous Arena rating
+that device had built up is left behind — a client cannot reassign a document to
+another uid under `firestore.rules`. The UI says so explicitly when it happens.
+
+### Storage shape
+
+    collections/{uid}                meta: rev + handle, team, knowledge, favourites
+    collections/{uid}/chunks/{0-7}   the collection, one deflate-raw blob each
+
+Both are **owner-only for read as well as write** — the only private tree in the
+database, since everything under `defences/` and `profiles/` has to be world-
+readable for the ladder to work without a server.
+
+Measured against 700 real random enwiki articles, an entry is ~659 bytes of JSON
+and ~177 compressed, so a single document would hit Firestore's 1 MiB cap at
+roughly 5,900 unique cards. Splitting by `id % 8` (`src/lib/cloud/wire.ts`) lifts
+that to ~47k and means opening a pack rewrites only the shards it touched.
+`url` is dropped on the wire and rebuilt from the title; `extract` is kept, because
+it cannot be recomputed locally and a restore without it would look broken.
+
+### Merge rules
+
+`src/lib/cloud/merge.ts`, pinned by `tests/cloud.test.ts`. The governing rule is
+that syncing twice must be a no-op, so duplicate counts merge with **max**, not
+`+` — summing would multiply a collection on every re-sync, which is
+unrecoverable. The cost is that two devices opening a pack for the same card while
+both offline converge on one copy. Finishes take the best of either side,
+`firstOpenedAt` the earliest, favourites union, and handle/team are
+last-write-wins on a persisted timestamp.
+
+Sync is pull-on-start / debounced-push-on-change (6s idle, flushed on
+`pagehide`), not live replication: `firebase/firestore/lite` has no snapshot
+listeners and the full SDK is not worth its bundle here.
+
+### Signing out
+
+Leaves the local collection alone — nothing is deleted from the device, and the
+next Arena visit mints a fresh anonymous identity. On a shared browser the next
+person would see the collection that was left there.
+
+## localStorage limits
+
+An entry is ~659 bytes, so a browser's typical 5 MB per-origin budget runs out
+somewhere around **8,000 unique cards** — sooner in practice, because the
+candidate pool (`wikitcg:candidates:v2`) and the pageview caches share it.
+Duplicates are free: `count` is an integer, so 3,000 unique cards at ten copies
+each is still only ~1.9 MB.
+
+`safeSet` used to swallow the resulting `QuotaExceededError`, which meant a player
+at that size silently lost every pack they opened from then on. It now raises
+`storageFull` (`src/lib/storage.ts`) and the app shows a banner telling them to
+sign in or disenchant duplicates.
 
 ## Attribution
 

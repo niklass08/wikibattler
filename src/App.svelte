@@ -6,6 +6,7 @@
   import Battle from './components/Battle.svelte';
   import Shop from './components/Shop.svelte';
   import Help from './components/Help.svelte';
+  import { storageFull } from './lib/storage';
 
   // Arena pulls in the Firebase SDK — load it (and its chunk) only on demand so
   // Open / Collection / Battle stay light and fully offline-capable.
@@ -13,6 +14,17 @@
 </script>
 
 <NavBar />
+
+{#if $storageFull}
+  <!-- A collection outgrows the browser's ~5 MB storage budget somewhere north
+       of 8,000 unique cards. Until now that failed silently and every pack
+       opened afterwards was lost on reload. -->
+  <div class="storage-warn wrap" role="alert">
+    <strong>This browser is out of storage.</strong>
+    New cards are being kept for this session only and will be lost when you reload. Sign in to save
+    your collection to your Google account, or disenchant some duplicates to free up room.
+  </div>
+{/if}
 
 <main>
   {#if $view === 'open'}
@@ -47,6 +59,18 @@
       100dvh - var(--nav-h) - var(--footer-h) - env(safe-area-inset-top) -
         env(safe-area-inset-bottom)
     );
+  }
+  .storage-warn {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--mythic, #f0a);
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .storage-warn strong {
+    color: var(--text);
   }
   .load-fail {
     padding-block: 18vh;

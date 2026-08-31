@@ -4,27 +4,12 @@ import { RARITIES } from './types';
 import { defenceFromBytes, strengthFromLinks } from './rarity';
 import { rollSignature } from './signature';
 import { disenchantValue } from './economy';
+import { safeGet, safeSet } from './storage';
 
 // v2: entries carry the full card — there is no static pool to look it up in.
 const COLLECTION_KEY = 'wikitcg:collection:v2';
 const PACKS_KEY = 'wikitcg:packs-opened:v1';
 const FAVOURITES_KEY = 'wikitcg:favourites:v1';
-
-function safeGet(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function safeSet(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    /* private mode / quota — collection is session-only this run */
-  }
-}
 
 function loadCollection(): Collection {
   const raw = safeGet(COLLECTION_KEY);
@@ -185,6 +170,15 @@ function createCollection() {
       });
       return earned;
     },
+    /**
+     * Replace the whole collection — used by cloud sync after a merge. Persists
+     * like any other mutation; the caller is responsible for having merged
+     * rather than clobbered (see `cloud/merge.ts`).
+     */
+    hydrate(next: Collection) {
+      set(next);
+      safeSet(COLLECTION_KEY, JSON.stringify(next));
+    },
     reset() {
       set({});
       safeSet(COLLECTION_KEY, JSON.stringify({}));
@@ -193,7 +187,7 @@ function createCollection() {
 }
 
 function createPacksOpened() {
-  const { subscribe, update } = writable<number>(loadPacks());
+  const { subscribe, set, update } = writable<number>(loadPacks());
   return {
     subscribe,
     increment() {
@@ -202,6 +196,11 @@ function createPacksOpened() {
         safeSet(PACKS_KEY, String(next));
         return next;
       });
+    },
+    hydrate(n: number) {
+      const v = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+      set(v);
+      safeSet(PACKS_KEY, String(v));
     }
   };
 }
@@ -224,6 +223,11 @@ function createFavourites() {
         safeSet(FAVOURITES_KEY, JSON.stringify([...next]));
         return next;
       });
+    },
+    hydrate(ids: Iterable<number>) {
+      const next = new Set([...ids].filter((n) => typeof n === 'number'));
+      set(next);
+      safeSet(FAVOURITES_KEY, JSON.stringify([...next]));
     },
     reset() {
       set(new Set());

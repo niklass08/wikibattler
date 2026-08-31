@@ -53,6 +53,10 @@ function create() {
     },
     setUid(uid: string) {
       update((p) => (p.uid === uid ? p : persist({ ...p, uid })));
+    },
+    /** Adopt a handle that came back from the cloud. */
+    hydrate(handle: string) {
+      update((p) => (p.handle === handle ? p : persist({ ...p, handle })));
     }
   };
 }

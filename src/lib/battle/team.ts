@@ -5,23 +5,9 @@
  */
 import { writable } from 'svelte/store';
 import { TEAM_SIZE } from './engine';
+import { safeGet, safeSet } from '../storage';
 
 const KEY = 'wikitcg:battle-team:v1';
-
-function safeGet(k: string): string | null {
-  try {
-    return localStorage.getItem(k);
-  } catch {
-    return null;
-  }
-}
-function safeSet(k: string, v: string): void {
-  try {
-    localStorage.setItem(k, v);
-  } catch {
-    /* private mode / quota */
-  }
-}
 
 function load(): number[] {
   const raw = safeGet(KEY);
@@ -55,6 +41,9 @@ function createBattleTeam() {
     },
     remove(id: number) {
       update((ids) => persist(ids.filter((x) => x !== id)));
+    },
+    hydrate(ids: number[]) {
+      set(persist(ids.filter((n) => typeof n === 'number').slice(0, TEAM_SIZE)));
     },
     clear() {
       set(persist([]));
