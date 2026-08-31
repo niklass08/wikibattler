@@ -23,6 +23,7 @@ import { applyPackFoil } from './foil';
 import { applyMythicSignatures } from './signature';
 import { rarityFromViews } from './rarity';
 import * as wiki from './wiki';
+import { safeGet, safeSet } from './storage';
 
 const PACK_SIZE = 7;
 
@@ -102,23 +103,10 @@ const fetchedMonths = new Set<string>();
 let linkPool: string[] = [];
 
 // --- persistence ------------------------------------------------------------
+// (safeGet/safeSet come from lib/storage, so the pool counts as an evictable
+//  cache rather than silently competing with the collection for room)
 
 let restored = false;
-
-function safeGet(k: string): string | null {
-  try {
-    return localStorage.getItem(k);
-  } catch {
-    return null;
-  }
-}
-function safeSet(k: string, v: string): void {
-  try {
-    localStorage.setItem(k, v);
-  } catch {
-    /* private mode / quota */
-  }
-}
 
 function adopt(into: Buckets, from: Buckets | undefined): void {
   for (const r of RARITIES) {

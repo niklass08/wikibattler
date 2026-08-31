@@ -7,6 +7,7 @@
   import Shop from './components/Shop.svelte';
   import Help from './components/Help.svelte';
   import { storageFull } from './lib/storage';
+  import { cloudHealthy } from './lib/cloud/flag';
 
   // Arena pulls in the Firebase SDK — load it (and its chunk) only on demand so
   // Open / Collection / Battle stay light and fully offline-capable.
@@ -17,12 +18,23 @@
 
 {#if $storageFull}
   <!-- A collection outgrows the browser's ~5 MB storage budget somewhere north
-       of 8,000 unique cards. Until now that failed silently and every pack
-       opened afterwards was lost on reload. -->
-  <div class="storage-warn wrap" role="alert">
-    <strong>This browser is out of storage.</strong>
-    New cards are being kept for this session only and will be lost when you reload. Sign in to save
-    your collection to your Google account, or disenchant some duplicates to free up room.
+       of 8,000 unique cards; before this it failed silently and every pack
+       opened afterwards was lost on reload.
+
+       What that MEANS depends on whether sync is running: with the cloud
+       holding the collection, a full localStorage is just a dead cache and
+       nothing is at risk, so the two cases get different wording rather than
+       one alarming message that is only sometimes true. -->
+  <div class="storage-warn wrap" class:safe={$cloudHealthy} role="status">
+    {#if $cloudHealthy}
+      <strong>This browser is out of storage.</strong>
+      Your collection is safe — it is saved to your account and will load from there. Disenchanting
+      duplicates frees up room and makes this device quicker to start.
+    {:else}
+      <strong>This browser is out of storage.</strong>
+      New cards are being kept for this session only and will be lost when you reload. Sign in to
+      save your collection to your account, or disenchant some duplicates to free up room.
+    {/if}
   </div>
 {/if}
 
@@ -71,6 +83,10 @@
   }
   .storage-warn strong {
     color: var(--text);
+  }
+  /* nothing is being lost while the cloud has it — say so without the alarm */
+  .storage-warn.safe {
+    border-color: var(--line);
   }
   .load-fail {
     padding-block: 18vh;

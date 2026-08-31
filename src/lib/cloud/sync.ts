@@ -38,7 +38,7 @@ import { knowledge } from '../shop';
 import { battleTeam } from '../battle/team';
 import { profile } from '../arena/profile';
 import { safeGet, safeSet } from '../storage';
-import { setCloudEnabled } from './flag';
+import { setCloudEnabled, setCloudHealthy } from './flag';
 import { mergeCollections, mergeSide, type SideState } from './merge';
 import { SHARDS, WIRE_VERSION, packShard, splitShards, unpackShard } from './wire';
 
@@ -197,9 +197,11 @@ export async function flush(): Promise<void> {
   inFlight = pushLocal(false)
     .then(() => {
       state.set({ phase: 'idle', at: Date.now(), error: null });
+      setCloudHealthy(true);
     })
     .catch(() => {
       pending = true; // keep it queued for the next attempt
+      setCloudHealthy(false);
       state.update((s) => ({ ...s, phase: 'error', error: 'Could not save to the cloud.' }));
     })
     .finally(() => {
@@ -263,6 +265,7 @@ export async function startSync(): Promise<void> {
     pending = true;
     await flush();
   } catch {
+    setCloudHealthy(false);
     state.set({ phase: 'error', at: null, error: 'Could not reach the cloud.' });
     throw new Error('sync-failed');
   }
@@ -278,5 +281,6 @@ export function stopSync(): void {
   unsubs = [];
   pushed = [];
   setCloudEnabled(false);
+  setCloudHealthy(false);
   state.set({ phase: 'off', at: null, error: null });
 }
