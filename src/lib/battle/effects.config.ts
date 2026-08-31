@@ -10,7 +10,7 @@
  * effects.ts turns whatever is here into field modifiers and a description
  * string automatically.
  *
- *   TAG_EFFECT      which effect each of the 13 tags plants (must cover them all)
+ *   TAG_EFFECT      which effect a tag plants (tags with a round effect are absent)
  *   DEFAULT_EFFECT  used when an abstract card's tags are all unmapped / absent
  *   EFFECTS         each effect: a display name + a list of stat contributions
  *
@@ -152,7 +152,9 @@ export const TAG_EFFECT: Partial<Record<Tag, EffectId>> = {
   geography: 'terrain',
   arts: 'muse',
   games: 'metagame',
-  nature: 'landmark', // nature cards usually classify as 'living'; this is the rare fallback
+  // nature and animals cards usually classify as 'living'; these are the rare fallbacks
+  nature: 'landmark',
+  animals: 'terrain',
   business: 'sponsorship',
   religion: 'faith'
 };

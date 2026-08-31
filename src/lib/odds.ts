@@ -85,6 +85,6 @@ export const FOIL_TIER_WEIGHTS: [number, number, number] = [0.62, 0.28, 0.1];
 /**
  * When a mythic is pulled it rolls one signature ability. This is the chance
  * the roll is drawn from one of the card's own themes; otherwise it's uniform
- * across all 17 themes.
+ * across all 18 themes.
  */
 export const SIGNATURE_LEAN = 0.5;

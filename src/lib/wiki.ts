@@ -7,7 +7,7 @@
  * (scripts/build-pools.ts) is gone; this is the only path to card data now.
  */
 import type { Card } from './types';
-import { rarityFromViews, strengthFromLinks, defenceFromBytes } from './rarity';
+import { rarityFromViews, strengthFromLinks, defenceFromBytes, DEFENCE_BYTES } from './rarity';
 import { deriveTags } from './tags';
 
 /** Language edition. Kept as one constant so it can change. */
@@ -167,11 +167,19 @@ export function monthlyFromViews60(views60: number): number {
   return Math.round(views60 / 2);
 }
 
-/** Playable = a real, non-stub, non-disambiguation mainspace article. */
+/**
+ * Playable = a real, non-empty, non-disambiguation mainspace article.
+ *
+ * The byte floor matches `DEFENCE_BYTES.min` in rarity.ts — anything the stat
+ * scale can score is playable. It used to sit at 1500, which quietly halved the
+ * plants and animals in the pool: species articles are mostly bot-written stubs
+ * whose median length is ~1.8 kB, so that cutoff landed mid-distribution and
+ * dropped a third of them against a tenth of everything else.
+ */
 export function isPlayable(page: WikiPage): boolean {
   return (
     !page.disambiguation &&
-    page.bytes >= 1500 &&
+    page.bytes >= DEFENCE_BYTES.min &&
     page.extract.length > 0 &&
     isRealArticle(page.title)
   );

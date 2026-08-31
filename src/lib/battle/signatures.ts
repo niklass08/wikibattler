@@ -151,7 +151,15 @@ export function applySignatures(
         hooks.comboBonus = n.bonus;
         detail = `every ${hooks.comboEvery}${ord(hooks.comboEvery)} swing hits +${pct(n.bonus)}`;
         break;
-      case 'nature':
+      case 'nature': {
+        // the umbrella theme pays for a *broad* team rather than a stacked one
+        const spread = new Set(team.flatMap((t) => t.card.tags ?? [])).size || 1;
+        mods.atkPct += n.perTheme * spread;
+        mods.hpPct += n.perTheme * spread;
+        detail = `+${pct(n.perTheme * spread)} attack & HP (${spread} themes)`;
+        break;
+      }
+      case 'animals':
         hooks.apexAtkPct += n.base + n.per * count;
         detail = `+${pct(n.base + n.per * count)} attack above half HP`;
         break;

@@ -14,7 +14,7 @@ describe('THEMES', () => {
     }
   });
 
-  it('has 17 distinct colours', () => {
+  it('has one distinct colour per theme', () => {
     const colors = TAGS.map((t) => THEMES[t].color.toLowerCase());
     expect(new Set(colors).size).toBe(TAGS.length);
   });

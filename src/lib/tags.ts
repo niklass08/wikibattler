@@ -19,6 +19,7 @@ export const TAGS = [
   'arts',
   'games',
   'nature',
+  'animals',
   'business',
   'religion',
   'plants',
@@ -33,9 +34,10 @@ export type Tag = (typeof TAGS)[number];
  * Bump whenever the theme rules change enough that already-tagged cards should
  * be re-derived. The collection view re-sweeps every card once when it sees a
  * newer rev than it last recorded. (1 = original 13 themes; 2 = + plants,
- * scientists, disease, vehicles.)
+ * scientists, disease, vehicles; 4 = + animals, with `nature` narrowed to the
+ * umbrella and plants no longer gated as a specialist.)
  */
-export const TAG_REV = 3;
+export const TAG_REV = 4;
 
 export const TAG_LABEL: Record<Tag, string> = {
   cinema: 'Cinema',
@@ -49,6 +51,7 @@ export const TAG_LABEL: Record<Tag, string> = {
   arts: 'Arts',
   games: 'Games',
   nature: 'Nature',
+  animals: 'Animals',
   business: 'Business',
   religion: 'Religion',
   plants: 'Plants',
@@ -60,6 +63,18 @@ export const TAG_LABEL: Record<Tag, string> = {
 /** Categories that say nothing about the topic — dropped before matching. */
 const CATEGORY_NOISE =
   /(\d{4}s? (births|deaths|establishments|disestablishments|debuts|introductions)|living people|articles |wikipedia |^cs1|webarchive|use [a-z]+ dates|use [a-z]+ english|coordinates|short description|pages |redirects|stub|commons category|good articles|featured articles|all articles|people from|surnames|given names)/i;
+
+/**
+ * Stub categories are normally noise ("Spanish football club stubs"), but on a
+ * bot-written species article they are often the most specific thing the page
+ * has — "Lamiaceae stubs", "Colletidae stubs", "Charaxinae stubs" — and such a
+ * page carries only three or four categories, so dropping it loses the theme
+ * outright. Rescued from CATEGORY_NOISE before matching.
+ */
+const TAXON_STUB =
+  /(\w{4,}(idae|aceae|inae|oidea|opsida|phyta)|\b(animal|bird|mammal|reptile|amphibian|fish|insect|beetle|moth|butterfly|spider|snail|mollusc|crustacean|plant|tree|orchid|fern|moss|fung(us|i)|flora|fauna|dinosaur)s?)\b[\w\s-]*\bstubs?\b/i;
+
+const isNoise = (c: string): boolean => !TAXON_STUB.test(c) && CATEGORY_NOISE.test(c);
 
 const RULES: Record<Tag, RegExp> = {
   cinema:
@@ -81,14 +96,20 @@ const RULES: Record<Tag, RegExp> = {
     /\b(paintings?|painters?|sculpt|visual artists?|art movements?|art museums?|architect|literature|novels?|novelists?|writers?|authors?|poets?|poetry|short stories|books?|plays?|playwrights?|fiction|literary|photographers?|fashion designers?)\b/i,
   games:
     /\b(video games?|board games?|card games?|tabletop games?|video game (developers?|publishers?|companies)|game designers?|esports?|role-playing games?|first-person shooters?|platform games?|nintendo|playstation|xbox)\b/i,
+  // `nature` is the umbrella every organism shares — the taxonomy, the ecology
+  // and the fungi/algae that are neither plant nor animal. What makes something
+  // specifically a beast or a herb lives in `animals` / `plants`, so a species
+  // article normally carries nature *and* one of those two.
   nature:
-    /\b(animals?|plants?|fungi|species|genera|taxa|birds?|mammals?|reptiles?|amphibians?|fish|insects?|arachnids?|molluscs?|moths?|butterflies|beetles?|spiders?|snakes?|orchids?|ferns?|flora|fauna|trees?|flowers?|ecosystems?|botany|zoolog|ornitholog|entomolog|endangered|dinosaurs?|prehistoric life|breeds?|described in \d{4}|\w{4,}(idae|aceae)\b)\b/i,
+    /\b(species|subspecies|genera|genus|taxa|taxonomy|taxonomic|fungi|fungus|mushrooms?|lichens?|algae|organisms?|biology|biological|ecology|ecological|ecosystems?|habitats?|biodiversity|conservation|endangered|nature reserves?|natural history|botanical gardens?|zoos|described in \d{4})\b/i,
+  animals:
+    /\b(animals?|fauna|wildlife|birds?|mammals?|reptiles?|amphibians?|fish(es)?|insects?|arachnids?|molluscs?|crustaceans?|moths?|butterflies|beetles?|spiders?|snails?|snakes?|lizards?|frogs?|toads?|whales?|dolphins?|sharks?|rodents?|apes?|monkeys?|marsupials?|ungulates?|dinosaurs?|prehistoric life|breeds?|livestock|\w{4,}(idae|inae|oidea)\b)\b/i,
   business:
     /\b(compan|corporations?|businesses|brands?|economics?|economies|banks?|financial|entrepreneurs?|businesspeople|manufacturers?|industries|multinational|startups?|billionaires?|stock exchanges?|trade)\b/i,
   religion:
     /\b(religio|christian|catholic|protestant|islam|muslim|hindu|buddhis|judais|jewish|churches|temples|mosques|cathedrals?|saints?|popes?|bishops?|clergy|theolog|mytholog|deities|gods?|goddess|monaster)\b/i,
   plants:
-    /\b(flowering plants?|\bplants?\b|trees?|shrubs?|ferns?|mosses|orchids?|grasses|vines?|cacti|cactus|wildflowers?|conifers?|angiosperms?|gymnosperms?|edible plants?|medicinal plants?|crops?|\w{3,}aceae\b)\b/i,
+    /\b(flowering plants?|\bplants?\b|flora|trees?|shrubs?|ferns?|mosses|orchids?|grasses|vines?|cacti|cactus|wildflowers?|conifers?|angiosperms?|gymnosperms?|edible plants?|medicinal plants?|crops?|botany|botanical|horticulture|horticultural|\w{3,}aceae\b)\b/i,
   scientists:
     /\b(scientists?|physicists?|chemists?|biologists?|mathematicians?|astronomers?|researchers?|nobel laureates in (physics|chemistry|medicine)|inventors?|naturalists?|geologists?|neuroscientists?|geneticists?|zoologists?|botanists?|microbiologists?|palaeontologists?|paleontologists?)\b/i,
   disease:
@@ -100,8 +121,14 @@ const RULES: Record<Tag, RegExp> = {
 /**
  * "Specialist" battle themes — narrow enough that a single stray category hit
  * shouldn't earn them as a secondary tag. See deriveTags below.
+ *
+ * `plants` and `animals` are deliberately *not* here. The gate wants three
+ * category hits, which no bot-written species stub ever reaches — it carries
+ * three or four categories in total — so it was keeping the two themes off
+ * precisely the cards that deserve them. Their vocabulary is concrete enough
+ * ("Lamiaceae", "Moths of Japan") that the ordinary support rule is enough.
  */
-const SPECIALIST = new Set<Tag>(['plants', 'scientists', 'disease', 'vehicles']);
+const SPECIALIST = new Set<Tag>(['scientists', 'disease', 'vehicles']);
 
 /**
  * Up to `max` themes for a card, most-supported first. Empty when nothing
@@ -110,7 +137,7 @@ const SPECIALIST = new Set<Tag>(['plants', 'scientists', 'disease', 'vehicles'])
 export function deriveTags(categories: string[], extract = '', max = 4): Tag[] {
   const cats = categories
     .map((c) => c.replace(/^Category:/, '').trim())
-    .filter((c) => c && !CATEGORY_NOISE.test(c));
+    .filter((c) => c && !isNoise(c));
 
   const catText = cats.join(' · ').toLowerCase();
   const extraText = extract.toLowerCase();
@@ -133,6 +160,9 @@ export function deriveTags(categories: string[], extract = '', max = 4): Tag[] {
   return scored
     .filter((s, i) => {
       if (i === 0) return true;
+      // the extract is a tie-breaker for the *leading* theme only — a secondary
+      // needs a category behind it, or a monkey picks up Plants for "tree tops"
+      if (s.score < 2) return false;
       if (!(s.score >= 4 || s.score >= top * 0.5)) return false;
       // a "specialist" theme as a *secondary* needs real category support — not
       // one stray hit like a film's "…due to the COVID-19 pandemic" category

@@ -256,7 +256,7 @@ of how the old crawl worked.
 2. **Seed commons:** loop `list=random&rnlimit=20` until you have ~3,000 unique
    mainspace titles not already in the popular set.
 3. **Enrich** (batches of 50): `prop=info|pageviews|pageimages|extracts|pageprops`,
-   `inprop=url`. Drop: disambiguation, `info.length < 1500`, missing extract.
+   `inprop=url`. Drop: disambiguation, `info.length < 800` (`DEFENCE_BYTES.min` — a higher floor cuts species stubs, which are half the plants and animals on Wikipedia), missing extract.
 4. **Link counts:** `action=parse&prop=links` per surviving title, concurrency 4,
    disk-cached. Compute `strength` input = count of `ns 0 && exists`.
 5. **Popularity:** for popular-seed titles use per-article monthly REST (avg last 3–6

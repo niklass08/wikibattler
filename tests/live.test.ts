@@ -281,6 +281,28 @@ describe('buildPack (candidate pooling)', () => {
   }, 30_000);
 });
 
+// The popularity sources carry no plants or animals at all, so the link harvest
+// seeds every other pass from a taxon hub — without it living things could only
+// ever arrive as commons.
+describe('stocking (taxon hubs)', () => {
+  beforeEach(() => {
+    _resetSession();
+    randomSeq = 0;
+    fetchMock.mockClear();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('seeds the link harvest from a taxon hub once the top lists are drained', async () => {
+    for (let i = 0; i < 60; i++) if ((await stockStep()) === 0) break;
+    const parsed = fetchMock.mock.calls
+      .map((c) => String(c[0]))
+      .filter((u) => u.includes('action=parse') && u.includes('prop=links'))
+      .map((u) => new URL(u).searchParams.get('page'));
+    expect(parsed).toContain('Mammal');
+  }, 30_000);
+});
+
 // A cold "quick" build (player waiting on an empty queue) must still produce a
 // normal-shaped pack — an earlier version spent its whole budget on the rare
 // bands and returned a pack with no commons at all.

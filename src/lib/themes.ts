@@ -28,6 +28,7 @@ const ICON: Record<Tag, string> = {
   arts: '🎨',
   games: '🎮',
   nature: '🌿',
+  animals: '🐾',
   business: '💰',
   religion: '✨',
   plants: '🌱',
@@ -40,6 +41,7 @@ const COLOR: Record<Tag, string> = {
   cinema: '#e5484d', // red
   war: '#b54b32', // rust
   sport: '#f2711c', // orange
+  animals: '#8f6b3d', // leather brown
   history: '#b08947', // bronze
   business: '#e0b23c', // gold
   disease: '#9db833', // sickly yellow-green

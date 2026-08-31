@@ -7,8 +7,10 @@ A trading-card game built on Wikipedia. Every article is a card:
 - **Rarity** (common / uncommon / rare / mythic) ← the article's popularity (pageviews)
 - **Foil** — a rarity-independent holographic finish (Shimmer / Radiant / Cosmic),
   rolled ~1 pack in 7; ~1 pack in 25 is a **god pack** with all 7 cards foiled
-- **Themes** — thematic tags (Cinema, Politics, Geography, History, …) classified
-  from the article's Wikipedia categories; filter the collection by them
+- **Themes** — thematic tags (Cinema, Politics, Animals, Plants, History, …)
+  classified from the article's Wikipedia categories; filter the collection by
+  them. `Nature` is the umbrella every organism shares (the taxonomy, the
+  ecology, the fungi); `Animals` and `Plants` say which kingdom it is.
 
 Two screens: **open packs** (7 cards — modally 4 common / 2 uncommon / 1 rare, with
 an upgrade roll on every card and a guaranteed rare-or-better in the last slot)
@@ -41,6 +43,15 @@ APIs (`src/lib/wiki.ts` → `src/lib/draw.ts`), so **any** article can turn up:
 - **rare / mythic** — the pageviews *top* lists for a few recent months
 - **uncommon** — the tail of those top lists, plus outgoing links harvested from
   popular articles (the mid-popularity middle is thin in the top 1000)
+
+One link harvest in three is seeded from a **taxon hub** instead (`Mammal`,
+`Flowering plant`, `Insect`, …). The popularity sources are pop culture almost
+without exception — no plant or animal appears in them — so without those hubs
+living things could only ever arrive as commons, at a third of their share of
+Wikipedia. Only the uncommon-or-better half of a hub harvest is kept: the common
+band already draws its own organisms from `generator=random`, and a hub's links
+are mostly low-traffic. A leopard still lands in whatever band its own pageviews
+earn.
 
 When an article has no lead image of its own, `wiki.backupImage()` pulls the first
 "content" image from the REST media-list (Wikipedia's own curated gallery set);

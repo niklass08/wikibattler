@@ -94,7 +94,16 @@ const FIXTURES: Record<string, { cats: string[]; expect: string; extract?: strin
   },
   Photosynthesis: {
     cats: ['Biological processes', 'Botany', 'Cellular respiration', 'Metabolism', 'Plant nutrition'],
-    expect: 'nature'
+    expect: 'plants'
+  },
+  // a bot-written species stub — the shape most plants and animals actually take
+  'Iberodorcadion aries': {
+    cats: ['Beetles described in 1999', 'Cerambycidae stubs', 'Lamiini'],
+    expect: 'animals'
+  },
+  'Phacelia hubbyi': {
+    cats: ['Flora of California', 'Hydrophyllaceae stubs', 'Phacelia', 'Plants described in 1917'],
+    expect: 'plants'
   },
   'Apple Inc.': {
     cats: [
@@ -154,6 +163,63 @@ describe('deriveTags', () => {
     const tags = deriveTags(FIXTURES['Angela Merkel'].cats);
     expect(tags.length).toBeLessThanOrEqual(4);
     for (const t of tags) expect(TAGS).toContain(t);
+  });
+
+  it('keeps a taxonomic stub category, drops every other kind', () => {
+    // on a species stub the stub category is often the most specific one there
+    // is, and the page only has three or four to begin with
+    expect(deriveTags(['Cerambycidae stubs'])).toContain('animals');
+    expect(deriveTags(['Lamiaceae stubs'])).toContain('plants');
+    expect(deriveTags(['Spanish football club stubs'])).toEqual([]);
+  });
+
+  it('gives a species article both the umbrella theme and its kingdom', () => {
+    const moth = deriveTags([
+      'Animal taxa named by Carl Linnaeus',
+      'Moths described in 1758',
+      'Olethreutini',
+      'Tortricidae of Europe'
+    ]);
+    expect(moth).toContain('animals');
+    expect(moth).toContain('nature');
+    expect(moth).not.toContain('plants');
+
+    const plant = deriveTags([
+      'Botanical taxa named by Carl Linnaeus',
+      'Caryophyllaceae stubs',
+      'Flora of Siberia',
+      'Plants described in 1753'
+    ]);
+    expect(plant).toContain('plants');
+    expect(plant).not.toContain('animals');
+  });
+
+  it('lets plants ride along as a secondary theme', () => {
+    // it used to be gated as a "specialist", which needed three category hits —
+    // more than a species stub carries, so the theme never landed on one
+    const tags = deriveTags(['Flora of California', 'Phacelia', 'Plants described in 1917']);
+    expect(tags).toContain('plants');
+  });
+
+  it('will not hang a secondary theme on the extract alone', () => {
+    // "adapted for life in tropical forests … among tree tops" — a monkey is not
+    // a plant, and the extract is only a tie-breaker for the leading theme
+    const tags = deriveTags(
+      ['Animal taxa named by Carl Linnaeus', 'Primates'],
+      'Primates arose from small terrestrial mammals which adapted to life among tree tops.'
+    );
+    expect(tags).toContain('animals');
+    expect(tags).not.toContain('plants');
+  });
+
+  it('leaves a zoologist with the scientists theme, not the animals one', () => {
+    const tags = deriveTags([
+      '20th-century German zoologists',
+      'German zoologist stubs',
+      'University of Freiburg faculty'
+    ]);
+    expect(tags).toContain('scientists');
+    expect(tags).not.toContain('animals');
   });
 
   it('returns nothing for a themeless stub', () => {

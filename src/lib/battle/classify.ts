@@ -33,7 +33,7 @@ const ORGANISM =
   /\b(?:is|was|are)\s+(?:a|an)\s+[^.]{0,32}\b(species|genus|subspecies|breed|family|order|clade|taxon)\s+of\b|\b(?:is|was)\s+(?:a|an)\s+[^.]{0,24}\b(mammal|bird|fish|reptile|amphibian|insect|arachnid|mollusc|crustacean|arthropod|animal|carnivore|herbivore|omnivore|predator|rodent|primate|marsupial|cetacean|felid|canid|ungulate|plant|tree|shrub|herb|flower|grass|fern|moss|fungus|alga|bacterium)\b/i;
 
 /** Tags that lean animate when the prose is inconclusive. */
-const LIVING_TAGS = new Set<Tag>(['nature']);
+const LIVING_TAGS = new Set<Tag>(['nature', 'animals', 'plants']);
 /** Tags that are almost always a work / place / institution / event. */
 const ABSTRACT_TAGS = new Set<Tag>(['cinema', 'music', 'geography', 'business', 'games']);
 

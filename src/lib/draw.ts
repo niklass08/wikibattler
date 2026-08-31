@@ -23,6 +23,7 @@ import { applyPackFoil } from './foil';
 import { applyMythicSignatures } from './signature';
 import { rarityFromViews } from './rarity';
 import * as wiki from './wiki';
+import { deriveTags } from './tags';
 import { safeGet, safeSet } from './storage';
 
 const PACK_SIZE = 7;
@@ -52,6 +53,42 @@ const SEED: Record<Rarity, number> = { common: 4, uncommon: 3, rare: 2, mythic: 
  * background requests, paid once and persisted.
  */
 const FILL: Record<Rarity, number> = { common: 100, uncommon: 100, rare: 100, mythic: 100 };
+
+/**
+ * Hub articles whose outgoing links are almost all organisms.
+ *
+ * The popularity sources are pop culture essentially without exception — of 60
+ * sampled top-list articles, none was a plant or an animal — so left alone the
+ * uncommon and rare bands never see a living thing and species could only ever
+ * be commons, at a third of their share of Wikipedia.
+ *
+ * Only the *uncommon-or-better* half of a hub harvest is kept (see
+ * `drainHubPool`): the common band already draws its fair share of organisms
+ * from `generator=random`, and a hub's links are mostly low-traffic, so keeping
+ * them all buried the commons in species instead — 29% of them, measured.
+ */
+const TAXON_HUBS = [
+  'Mammal',
+  'Bird',
+  'Reptile',
+  'Amphibian',
+  'Fish',
+  'Insect',
+  'Arachnid',
+  'Mollusca',
+  'Plant',
+  'Flowering plant',
+  'Tree',
+  'Orchidaceae',
+  'Fern',
+  'Fungus',
+  'Wildlife',
+  'Dinosaur',
+  'Endangered species',
+  'List of animal names',
+  'Lists of animals',
+  'Lists of plants'
+];
 
 /** Persisting the pool is a ~300 KB stringify, so don't do it on every step. */
 const PERSIST_EVERY_MS = 5_000;
@@ -101,6 +138,12 @@ const topSeen = new Set<string>();
 const fetchedMonths = new Set<string>();
 /** Mid-popularity titles harvested from popular articles' links, not yet enriched. */
 let linkPool: string[] = [];
+/** The same, harvested from a taxon hub — kept apart so commons can be dropped. */
+let hubPool: string[] = [];
+/** Taxon hubs already harvested — re-parsing one yields the same links again. */
+const usedHubs = new Set<string>();
+/** Counts link-harvest batches, so every third one is drawn from the hub pool. */
+let harvests = 0;
 
 // --- persistence ------------------------------------------------------------
 // (safeGet/safeSet come from lib/storage, so the pool counts as an evictable
@@ -131,12 +174,16 @@ function restoreCandidates(): void {
         topSeen?: string[];
         fetchedMonths?: string[];
         linkPool?: string[];
+        hubPool?: string[];
+        usedHubs?: string[];
       };
       adopt(buckets, s.buckets);
       for (const r of RARITIES) for (const t of s.topByRarity?.[r] ?? []) topByRarity[r].push(t);
       for (const t of s.topSeen ?? []) topSeen.add(t);
       for (const m of s.fetchedMonths ?? []) fetchedMonths.add(m);
+      for (const h of s.usedHubs ?? []) usedHubs.add(h);
       if (Array.isArray(s.linkPool)) linkPool = s.linkPool.slice(0, 400);
+      if (Array.isArray(s.hubPool)) hubPool = s.hubPool.slice(0, 200);
     }
   } catch {
     /* ignore a corrupt blob */
@@ -161,7 +208,9 @@ function persistCandidates(force = false): void {
       topByRarity,
       topSeen: [...topSeen],
       fetchedMonths: [...fetchedMonths],
-      linkPool: linkPool.slice(0, 400)
+      usedHubs: [...usedHubs],
+      linkPool: linkPool.slice(0, 400),
+      hubPool: hubPool.slice(0, 200)
     })
   );
 }
@@ -267,21 +316,26 @@ async function sourceOne(rarity: Rarity): Promise<number> {
   }
 
   // uncommon — first the tail of the top lists (they carry real view counts),
-  // then, since the mid-popularity middle is thin up there, a popular article's
-  // outgoing links. That harvest is pooled and persisted, so the `parse` is paid
-  // once per ~15 batches of candidates.
+  // then, since the mid-popularity middle is thin up there, outgoing links: two
+  // parts a popular article's, one part a taxon hub's. Either harvest is pooled
+  // and persisted, so the `parse` is paid once per ~15 batches of candidates.
   const fromTop = topByRarity.uncommon.splice(0, 20);
   if (fromTop.length > 0) {
     await enrichTop(fromTop);
     return 1;
   }
 
+  // Every third batch comes from the taxon hubs, the rest from a popular
+  // article's links. Both are harvested once and drained 20 titles at a time.
+  if (harvests++ % 3 === 0 && (hubPool.length > 0 || nextHub())) return drainHubPool();
+
   let spent = 0;
   if (linkPool.length < 20) {
     // seed from a popular article already in the pool, so this keeps working
-    // once the un-enriched top lists have been drained
-    const seed = randomOf([...buckets.mythic, ...buckets.rare]);
-    const title = seed?.page.title ?? randomOf(topByRarity.rare)?.title;
+    // once the un-enriched top lists have been drained — but never from an
+    // organism, or the hubs' own rares would seed further organism harvests
+    const popular = [...buckets.mythic, ...buckets.rare].filter((c) => !isOrganism(c.page));
+    const title = randomOf(popular)?.page.title ?? randomOf(topByRarity.rare)?.title;
     if (!title) return 0;
     spent++;
     const links = await wiki.linksOf(title).catch(() => []);
@@ -292,6 +346,47 @@ async function sourceOne(rarity: Rarity): Promise<number> {
   spent++;
   for (const page of await wiki.enrichTitles(linkPool.splice(0, 20)).catch(() => [])) {
     stashInto(buckets, page, wiki.monthlyFromViews60(page.views60 ?? 0));
+  }
+  return spent;
+}
+
+const LIVING_TAGS = ['animals', 'plants', 'nature'];
+const isOrganism = (page: wiki.WikiPage): boolean =>
+  deriveTags(page.categories, page.extract).some((t) => LIVING_TAGS.includes(t));
+
+/** The hub whose links are due to be fetched on the next hub batch. */
+let pendingHub: string | null = null;
+
+/** Queue the next unused taxon hub for harvest. False once they run out. */
+function nextHub(): boolean {
+  const hub = TAXON_HUBS.find((h) => !usedHubs.has(h));
+  if (!hub) return false;
+  usedHubs.add(hub);
+  pendingHub = hub;
+  return true;
+}
+
+/**
+ * One batch of taxon-hub candidates. Commons are dropped: the random-article
+ * source already supplies organisms at their natural rate down there, and what
+ * the pool is short of is a plant or an animal a player can pull as an uncommon
+ * or a rare.
+ */
+async function drainHubPool(): Promise<number> {
+  let spent = 0;
+  if (pendingHub) {
+    const hub = pendingHub;
+    pendingHub = null;
+    spent++;
+    const links = await wiki.linksOf(hub).catch(() => []);
+    hubPool.push(...shuffle(links).slice(0, 200));
+  }
+  if (hubPool.length === 0) return spent;
+  spent++;
+  for (const page of await wiki.enrichTitles(hubPool.splice(0, 20)).catch(() => [])) {
+    const views = wiki.monthlyFromViews60(page.views60 ?? 0);
+    if (rarityFromViews(views) === 'common') continue;
+    stashInto(buckets, page, views);
   }
   return spent;
 }
@@ -499,7 +594,11 @@ export function _resetSession(): void {
   pendingIds.clear();
   topSeen.clear();
   fetchedMonths.clear();
+  usedHubs.clear();
+  harvests = 0;
+  pendingHub = null;
   linkPool = [];
+  hubPool = [];
   restored = false;
   persistDue = 0;
   step = 0;

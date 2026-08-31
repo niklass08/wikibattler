@@ -261,7 +261,7 @@
     Every mythic rolls one <strong>signature</strong> the moment it's pulled and keeps it for
     good. It shows as a gold ★ line on the card. The roll is
     {Math.round(SIGNATURE_LEAN * 100)}% one of the card's own themes and
-    {Math.round((1 - SIGNATURE_LEAN) * 100)}% any of the 17.
+    {Math.round((1 - SIGNATURE_LEAN) * 100)}% any of the {TAGS.length}.
   </p>
   <p>
     In a fight a signature pays out scaled by <strong>N</strong> — the number of team cards

@@ -86,9 +86,15 @@ export const SIGNATURES: Record<Tag, SignatureDef> = {
     n: { base: 4, min: 2, bonus: 0.75 }
   },
   nature: {
-    name: 'Apex Predator',
+    name: 'Biodiversity',
     icon: '🌿',
-    blurb: '+10% team attack while the team is above half HP, +2% more per nature card.',
+    blurb: '+2.5% team attack and HP for every distinct theme represented on the team.',
+    n: { perTheme: 0.025 }
+  },
+  animals: {
+    name: 'Apex Predator',
+    icon: '🐾',
+    blurb: '+10% team attack while the team is above half HP, +2% more per animals card.',
     n: { base: 0.1, per: 0.02 }
   },
   business: {
